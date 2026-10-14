@@ -1,0 +1,53 @@
+# Instalação do servidor (Manager) — Laragon / Windows
+
+> **Estado: guia de projeto, NÃO validado em um Laragon real.** O host de desenvolvimento não tem MySQL, Redis nem Laragon. Cada passo abaixo deve ser executado e conferido na primeira instalação; corrija este documento com o que for diferente. Fica pendente na task 013/014.
+
+## 1. Requisitos
+- Windows com Laragon (Apache **ou** Nginx), PHP ≥ 8.3, MySQL 8.0+ (ou MariaDB 10.6+), Redis, Node 20+ (apenas para compilar o front-end).
+- PHP com `openssl` **e** arquivo `openssl.cnf` acessível (variável `OPENSSL_CONF`), `pdo_mysql`, `sodium`, `intl`, `mbstring`, `curl`, `zip`; `phpredis` (ou `predis/predis` via Composer).
+- Recursos sugeridos para ~100 endpoints: 2 vCPU, 4 GB RAM, 20 GB (a validar por medição — task 013).
+
+## 2. Banco de dados (MySQL)
+```sql
+CREATE DATABASE toolit CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'toolit'@'127.0.0.1' IDENTIFIED BY '<senha-forte>';
+GRANT ALL ON toolit.* TO 'toolit'@'127.0.0.1';   -- necessário apenas para migrar (inclui TRIGGER)
+```
+Depois de migrar, em produção **reduza** o usuário da aplicação: sem `UPDATE`/`DELETE` em `audit_logs` (ele continua protegido por trigger, mas o privilégio é a segunda camada) e sem `DROP`/`TRIGGER`. Use outro usuário para migrações. Defina senha no `root`; `bind-address=127.0.0.1` se o app estiver na mesma máquina.
+
+## 3. Aplicação
+```bash
+cd manager
+composer install --no-dev --optimize-autoloader
+cp .env.example .env     # ajustar abaixo
+php artisan key:generate
+php artisan migrate --force --seeder=RolesAndPermissionsSeeder   # ou: migrate --force && db:seed --class=RolesAndPermissionsSeeder --force
+npm ci && npm run build
+php artisan toolit:create-admin --name="..." --email="..."
+php artisan config:cache && php artisan route:cache && php artisan view:cache
+```
+`.env` de produção: `APP_ENV=production`, `APP_DEBUG=false`, `APP_URL=https://<host>`, `DB_CONNECTION=mysql` + credenciais, `SESSION_DRIVER=redis`, `QUEUE_CONNECTION=redis`, `CACHE_STORE=redis`, `SESSION_SECURE_COOKIE=true`. **Guarde `APP_KEY` fora do servidor** (sem ela, sessões e segredos TOTP cifrados são perdidos).
+
+## 4. TLS
+O Agent **recusa** HTTP e certificados não confiáveis. Use um certificado emitido por uma CA corporativa (instalada nos endpoints por GPO) para o nome DNS do Manager. O certificado autoassinado do Laragon serve só para desenvolvimento.
+
+## 5. Processos persistentes (a validar)
+| Processo | Comando | Como manter |
+|---|---|---|
+| Fila | `php artisan queue:work --tries=3 --max-time=3600` | NSSM (serviço) ou Agendador de Tarefas |
+| Agendador | `php artisan schedule:run` a cada minuto | Agendador de Tarefas |
+| Tempo real (task 010) | `php artisan reverb:start` | NSSM |
+*(Fila, agendador e Reverb ainda não têm jobs/uso na Fase 1.)*
+
+## 6. Rede
+Firewall: liberar apenas TCP 443 do Manager para a LAN. MySQL e Redis **não** devem ser expostos à rede. DNS: registro A interno para o nome usado no certificado.
+
+## 7. Verificação pós-instalação
+1. `php artisan about` — ambiente `production`, debug off.
+2. Login do administrador + ativação do TOTP.
+3. `php artisan toolit:enrollment-token --user=<admin>` e `php tests/integration/agent-smoke.php https://<host> <token>` (7/7).
+4. `php artisan audit:verify` — cadeia íntegra.
+5. `php artisan test` com `DB_CONNECTION=mysql` num banco **de teste** (nunca no de produção) — pendência L1.
+
+## 8. Backup e atualização
+Task 014 (backup MySQL + `storage/` + `.env` cifrado; rollback). Até lá: `mysqldump --single-transaction toolit` diário e cópia fora do servidor.

@@ -1,0 +1,22 @@
+# Segredos e artefatos locais
+.env
+.env.*
+!.env.example
+*.pfx
+*.pem
+*.key
+release-signing/
+
+# Agent (.NET)
+agent/**/bin/
+agent/**/obj/
+agent/publish/
+*.user
+.vs/
+
+# Instalador / saída de build
+installer/out/
+
+# Sistema
+Thumbs.db
+.DS_Store

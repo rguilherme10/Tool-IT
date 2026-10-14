@@ -1,0 +1,14 @@
+{
+    "description": "Vetor de contrato do protocolo de assinatura v1 (docs/api/agent-api-v1.md §1). Qualquer implementação do Agent deve (a) reproduzir canonical_string a partir dos campos e (b) verificar a assinatura com a chave pública. A assinatura é ECDSA P-256/SHA-256 em DER (RFC 3279); ECDSA é aleatória, então comparar a verificação, não os bytes.",
+    "public_key_spki_der_base64": "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAECenqInCPMywBV3yQW13u13AfOAmzq9Lm7Qvd886EonPzJOrsJlq1k6qSFfQBlwIXTNwh+0gILxc95g9sZgOuKw==",
+    "request": {
+        "method": "POST",
+        "path": "/api/agent/v1/heartbeat",
+        "query": "b=2&a=1",
+        "timestamp": "1760000000",
+        "nonce": "vector-nonce-0001",
+        "body": "{\"uptime_seconds\":42}"
+    },
+    "canonical_string": "v1\nPOST\n/api/agent/v1/heartbeat\na=1&b=2\n1760000000\nvector-nonce-0001\nb0b930df04bc518914e5715066c9c197369269ec0b54b115295d9302af9cef33",
+    "signature_der_base64": "MEUCICOoS7SabmAkl7BRJ9zflEb2WAiTH9566Iqxu2ZjyktIAiEA/2G1/hubj2fL2wpcfRM++k+/LFcRGXZT0Aln802kgEo="
+}
