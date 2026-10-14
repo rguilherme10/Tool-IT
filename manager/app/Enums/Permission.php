@@ -9,6 +9,8 @@ namespace App\Enums;
 enum Permission: string
 {
     case InventoryView = 'inventory.view';
+    /** Software instalado completo, IPs, MACs e usuário logado (dados pessoais/sensíveis; fora do perfil Consulta). */
+    case InventoryViewSensitive = 'inventory.view_sensitive';
     case MetricsView = 'metrics.view';
     case AlertsView = 'alerts.view';
     case AlertsManage = 'alerts.manage';

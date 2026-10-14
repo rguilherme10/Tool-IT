@@ -1,0 +1,86 @@
+using AgentToolit.Collectors;
+using AgentToolit.Core.Config;
+using AgentToolit.Core.Services;
+
+namespace AgentToolit;
+
+/// <summary>Cascas finas de BackgroundService: toda a lógica está em serviços testáveis.</summary>
+internal static class Loop
+{
+    public static async Task RunAsync(Func<CancellationToken, Task<TimeSpan>> tick, TimeProvider time, ILogger logger, string name, CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            TimeSpan delay;
+            try
+            {
+                delay = await tick(ct);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                // Nenhum erro inesperado derruba o serviço: registra e tenta de novo.
+                logger.LogError(ex, "Falha inesperada em {Worker}; nova tentativa em 60s.", name);
+                delay = TimeSpan.FromSeconds(60);
+            }
+
+            try
+            {
+                await Task.Delay(delay, time, ct);
+            }
+            catch (OperationCanceledException)
+            {
+                return;
+            }
+        }
+    }
+}
+
+public sealed class HeartbeatWorker(HeartbeatService service, TimeProvider time, ILogger<HeartbeatWorker> logger) : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
+        Loop.RunAsync(service.TickAsync, time, logger, "heartbeat", stoppingToken);
+}
+
+public sealed class SenderWorker(SenderService service, TimeProvider time, ILogger<SenderWorker> logger) : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
+        Loop.RunAsync(service.TickAsync, time, logger, "sender", stoppingToken);
+}
+
+public sealed class MetricsWorker(CollectionService collection, AgentSettings settings, TimeProvider time, ILogger<MetricsWorker> logger) : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
+        Loop.RunAsync(async ct =>
+        {
+            await collection.CollectMetricsAsync(ct);
+
+            return TimeSpan.FromSeconds(settings.MetricsSeconds);
+        }, time, logger, "metrics", stoppingToken);
+}
+
+public sealed class InventoryWorker(CollectionService collection, AgentSettings settings, TimeProvider time, ILogger<InventoryWorker> logger) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        // Pequena espera inicial: o boot do Windows ainda está concorrendo por disco/CPU (limite de carga no start).
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(20), time, stoppingToken);
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+
+        await Loop.RunAsync(async ct =>
+        {
+            await collection.CollectInventoryAsync(ct);
+
+            return TimeSpan.FromHours(settings.InventoryHours);
+        }, time, logger, "inventory", stoppingToken);
+    }
+}

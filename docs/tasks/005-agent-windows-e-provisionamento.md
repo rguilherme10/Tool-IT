@@ -51,5 +51,6 @@ Unit: assinatura, canonicalização, backoff, fila (limite/ordem/descarte), conf
 ## Riscos
 Falta SDK .NET 10; testes de serviço exigem privilégios de administrador e máquina de teste.
 
-## Checklist
-- [ ] Solução - [ ] Signer - [ ] Enroll - [ ] Heartbeat - [ ] Fila - [ ] Serviço - [ ] Testes - [ ] Medições - [ ] Docs
+## Checklist (estado em 2026-10-14)
+- [x] Solução (sobre o template do usuário, ADR-014) - [x] Signer + vetor cruzado PHP↔C# - [x] Enroll (token nunca em disco) - [x] Heartbeat - [x] Fila SQLite limitada - [x] Backoff/jitter - [x] Logs com redação - [x] Revogação detectada e persistida - [x] Rotação de chave: lado Manager testado; comando `rotate-key` do Agent escrito mas **sem teste automatizado nem execução contra o Manager real** - [x] 100 testes - [x] Medição de CPU/RAM (1 máquina)
+- [ ] **Serviço instalado e validado como Administrador** (início automático, recuperação, reinício do PC) - [ ] Teste de instalação/remoção em máquina limpa - [ ] Migrar para `net10.0` (SDK 10) - [ ] Docs de implantação validadas

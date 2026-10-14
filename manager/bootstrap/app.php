@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureTwoFactorForAdmins;
 use App\Http\Middleware\EnsureUserIsActive;
+use App\Http\Middleware\LimitAgentPayload;
 use App\Http\Middleware\SecurityHeaders;
 use App\Http\Middleware\VerifyAgentSignature;
 use App\Support\Api\AgentApiError;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'agent.signed' => VerifyAgentSignature::class,
+            'agent.payload' => LimitAgentPayload::class,
             'active' => EnsureUserIsActive::class,
             'mfa.admin' => EnsureTwoFactorForAdmins::class,
         ]);

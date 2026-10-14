@@ -56,3 +56,15 @@ Arquivo em `%ProgramData%\Toolit\Agent\queue.db`, ACL restrita a SYSTEM/Administ
 
 ## ADR-012 — Atualização do Agent assinada
 Pacote ZIP + manifesto assinado (ECDSA P-256 ou Authenticode no executável). Chave pública de verificação embutida no Agent; chave privada de release fora do servidor Manager. Rollback automático se o novo serviço não reportar saúde em N minutos.
+
+## ADR-014 — Layout real do Agent e SQLite do sistema (Fase 2)
+**Contexto:** o dono do projeto iniciou o Agent com o template *Worker Service* do Visual Studio em `agent/Toolit/` (solução `Toolit.sln`, projeto `AgentToolit`, `net8.0`). Preservamos essa estrutura em vez de recriá-la.
+**Decisão:** `agent/Toolit/{Toolit (host/serviço), AgentToolit.Core, AgentToolit.Collectors, AgentToolit.Tests}` + `Directory.Build.props` (TFM central, ADR-010). Core = protocolo, identidade, cliente HTTP, fila, logs, serviços de heartbeat/envio; Collectors = Windows (WMI, Registro, P/Invoke). A lógica fica em serviços testáveis; os `BackgroundService` são cascas finas.
+**SQLite:** a fila local usa `Microsoft.Data.Sqlite.Core` + `SQLitePCLRaw.bundle_winsqlite3` (o `winsqlite3.dll` do Windows). Motivo: o SQLite nativo embutido (`e_sqlite3`) está sujeito a aviso de severidade alta (GHSA-2m69-gcr7-jv3q) mesmo na última versão do pacote; o do sistema é atualizado pelo Windows Update e reduz o pacote de 28 MB para ~4 MB. Requer Windows 10 1607+.
+
+## ADR-015 — Semântica do inventário
+Estado **atual** em `endpoint_inventories` (JSON por seção) + histórico enxuto (`inventory_snapshots` só com metadados). Seção `ok` substitui; `unavailable`/`error` preserva o último dado bom e registra o estado da coleta (a UI nunca mostra "vazio" quando o problema foi a coleta). Software em tabela própria com `removed_at` (remoção só concluída em coleta completa). Dados do equipamento são não confiáveis: validação estrita no Manager, campos desconhecidos descartados, escape na UI.
+**Privacidade:** `inventory.view_sensitive` separa software completo, IPs/MACs e usuário logado do perfil Consulta.
+
+## ADR-016 — Coleta leve (sem WMI desnecessário)
+Métricas frequentes sem WMI nem contadores de desempenho localizados (`GetSystemTimes`, `GlobalMemoryStatusEx`, `DriveInfo`). WMI apenas no inventário (consultas pontuais, propriedades explícitas, timeout de 10 s por consulta e 30 s por seção). Software pelo Registro (nunca `Win32_Product`, que dispara reconfiguração MSI). Temperatura/sensores: não coletados (sem fonte confiável) — o campo existe e vai vazio.

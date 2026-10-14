@@ -1,29 +1,51 @@
 # Evidências de testes
 
-Cada linha é um resultado **observado**. Ambiente da Fase 1: Windows 11 Home 10.0.26300, PHP 8.4.1 (NTS, x64), Composer 2.8.10, Laravel 13, PHPUnit 12, SQLite (memória) — **sem MySQL nem Redis**.
+Cada linha é um resultado **observado** (2026-10-14). Ambiente: Windows 11 Home Single Language 10.0.26300, **sessão sem privilégios de Administrador**, PHP 8.4.1, Composer 2.8.10, Laravel 13, PHPUnit 12 (SQLite em memória), .NET SDK 9.0.308 compilando `net8.0`, 12 CPUs lógicas, 36 GB de RAM. **Sem MySQL, Redis ou Laragon.**
 
-## Fase 1 — Manager (2026-10-14)
+## Fase 2 — Agent + Manager
 
 | Teste | Comando | Resultado |
 |---|---|---|
-| Suíte completa do Manager | `cd manager && php artisan test` | **229 aprovados / 0 falhas** (802 asserções, ≈ 77 s — a maior parte é geração de chaves EC reais) |
-| Dependências PHP | `composer audit` | Nenhuma vulnerabilidade conhecida |
-| Dependências JS | `npm audit` | 0 vulnerabilidades |
-| Build do front-end | `npm run build` | OK (Vite 7 / Tailwind 4) |
-| Estilo | `vendor/bin/pint` | Aplicado |
-| Smoke real por HTTP | `php artisan serve` + `php tests/integration/agent-smoke.php <url> <token>` | 7/7 verificações: meta, enroll 201, token não reutilizável, heartbeat 200, replay 401, corpo adulterado 401, sem assinatura 401 |
-| Integridade da auditoria após o smoke | `php artisan audit:verify` | "Cadeia íntegra: 4 registros verificados" |
+| Suíte do Manager | `cd manager && php artisan test` | **278 aprovados / 0 falhas** (1092 asserções, ≈ 41 s) |
+| Suíte do Agent | `cd agent/Toolit && dotnet test Toolit.sln` | **100 aprovados / 0 falhas** (inclui 6 testes de leitura real do Windows) |
+| Vetor de contrato PHP↔C# | `SignatureContractTests` + `ContractVectorTest` | String canônica idêntica byte a byte; **assinatura gerada pelo OpenSSL do PHP verificada no .NET** |
+| Vulnerabilidades PHP | `composer audit` | nenhuma |
+| Vulnerabilidades .NET | `dotnet list package --vulnerable --include-transitive --source https://api.nuget.org/v3/index.json` | **nenhuma** após trocar o SQLite embutido pelo `winsqlite3` e fixar 2 pacotes transitivos de teste (antes: 3 avisos *High*). A fonte NuGet corporativa do host (`nexus.tce.go.gov.br`) é inacessível — usar a fonte pública para o scan. |
+| Estilo | `vendor/bin/pint` | aplicado |
 
-### O que a suíte cobre (resumo)
-- **RBAC**: matriz completa papel × permissão (5 × 28), isolamento por grupo e descendentes, usuário inativo/excluído, último admin, unicidade de atribuição.
-- **Auditoria**: sequência, cadeia, triggers bloqueando UPDATE/DELETE, detecção de registro alterado/removido/cauda removida, redação de segredos, rollback junto da ação.
-- **API do Agent**: enroll (token uso único/multiuso/expirado/revogado/inexistente com resposta idêntica, chave inválida/duplicada, validação), substituição de equipamento, 1 instalação ativa por endpoint (nível de banco), assinatura (cada header, adulteração de corpo/caminho/método/query, ordem de query, janela de relógio, replay, nonce inválido, ausência de oráculo), heartbeat, revogação imediata, rotação de chave (janela de transição), rate limit por instalação e por IP, formato de erro.
-- **Web**: login, falha auditada sem e-mail em claro, throttling, MFA TOTP completo (ativar → confirmar → desafio → anti-replay do código), MFA obrigatório para admin, isolamento entre grupos (listagem, detalhe → 404, revogação → 403/404), XSS (dados do endpoint escapados; varredura proíbe `{!! !!}`), token exibido uma vez, escopo/multiuso do enrollment, CSRF nos formulários.
-- **Contrato**: vetor PHP da assinatura (`tests/contracts/signature-vector.json`).
+### Teste ponta a ponta com o executável real (sem simulação)
+Manager (`php artisan serve` + SQLite temporário) e o `AgentToolit.exe` **publicado** (`dotnet publish -c Release`), modo console, intervalos de 15 s:
+
+| Verificação | Resultado |
+|---|---|
+| `enroll` com token real | Registrado; segundo uso do mesmo token → recusado; HTTP não-loopback → recusado; segundo `enroll` sem `--force` → recusado |
+| Segredos em disco | token: **0 ocorrências** nos arquivos do Agent; `identity.key` é blob DPAPI (cabeçalho `01 00 00 00 D0 8C 9D DF`) |
+| Inventário recebido | 5/5 seções `ok`; 109 softwares; 9 interfaces; hardware (CPU, 36 565 MB, 2 volumes), `not_detected` vazio; fabricante/modelo/serial/SO preenchidos no endpoint |
+| Métricas | amostras chegando a cada ciclo; CPU, memória e volumes coerentes com a máquina |
+| **Queda do Manager (≈ 55 s)** | Agent continuou coletando; log mostra backoff 17 s → 41 s e fila 2 → 4 itens; ao religar, tudo entregue: **11 amostras, 0 lacunas > 25 s, 0 duplicatas** |
+| **Revogação com o Agent rodando** | Agent suspendeu coleta e envio em ≈ 1 s, **preservou a fila**, gravou `Revogado=true` (sobrevive a reinício); o Manager não aceitou mais nenhuma amostra (11 → 11 em 40 s); auditoria registrou `agent.revoked` e `agent.revoked_access_attempt`; `audit:verify` íntegro (8 registros) |
+| Reinstalação (`enroll --force`) | Nova identidade; fila antiga descartada (não é atribuída à nova instalação) |
+| Pacote final sem SQLite embutido | publicação caiu de 28 MB para 3,7 MB; fila funciona com o `winsqlite3` do sistema |
+
+### Consumo de recursos medido (processo real, operação normal: heartbeat/métricas 60 s, inventário no início)
+Janela de 120 s em 12 CPUs lógicas: **CPU total 1,36 s** ⇒ média **0,09 % da máquina (1,1 % de um núcleo)**; **working set 66–68 MB**, memória privada ≈ 18 MB, 15 threads, 509 handles. A maior parte da CPU ocorre na coleta inicial do inventário (~1 s). **Não é uma promessa de capacidade:** medido em uma única máquina de desenvolvimento; falta medir em PCs modestos e sob carga (task 013).
+Coleta isolada (esta máquina): inventário completo ≈ 1 s e 19 KiB; software (109 itens) ≈ 21 ms; amostra de métricas ≈ 513 ms na primeira (500 ms são a espera deliberada para ter dois pontos de CPU); as seguintes não foram cronometradas isoladamente.
+
+### Bugs reais encontrados pelos testes e corrigidos nesta fase
+1. `enroll` aplicava a ACL restrita (SYSTEM/Administradores) a um usuário comum e o **trancava fora do próprio diretório** depois de o token ser consumido → ACL só quando elevado; teste de escrita **antes** de gastar o token; mensagem de recuperação com `agent_id` se o estado local falhar depois do registro.
+2. Item corrompido na fila derrubaria o envio com `JsonException` → `TryDeserialize` descarta o item.
+3. Backoff inicial (5 s) acelerava as tentativas abaixo do intervalo normal (10 s) → piso no intervalo.
+4. `enroll --force` reaproveitaria a fila da instalação anterior → fila limpa no registro.
+5. Seção de auditoria do detalhe do endpoint não aparecia (merge de arrays) — pego pelo teste de isolamento.
+6. SQLite nativo embutido com aviso de segurança alto → `winsqlite3` do sistema.
 
 ### Não validado (honestamente)
-- MySQL 8 / MariaDB: migrations, coluna gerada com índice único, triggers `SIGNAL`, `ESCAPE '!'`.
-- Redis (fila/cache/sessão/nonce).
-- Concorrência real de dois processos consumindo o mesmo token (o consumo é atômico por `UPDATE … WHERE uses < max_uses`, mas só foi exercitado sequencialmente).
-- Navegador real (layout responsivo, QR code do TOTP) — apenas HTML verificado por testes.
-- Agent C# (não existe ainda).
+- **Serviço Windows real**: `sc create`, início automático, recuperação após falha, reinício do PC, instalação/atualização/desinstalação com o script. A sessão não é Administrador; o script só foi validado em `-DryRun` e nas guardas (HTTPS obrigatório, payload ausente, exige elevação).
+- MySQL 8 / MariaDB e Redis (migrations, coluna gerada, triggers `SIGNAL`, `ESCAPE '!'`, filas).
+- Concorrência real entre processos (token, snapshot).
+- Windows 10, ARM64, PCs sem WMI/privilégios, máquinas com 1000+ softwares ou sem usuário conectado.
+- Navegador real (layout das novas abas, SVG do gráfico) — apenas HTML verificado por testes.
+- HTTPS com CA corporativa (os testes usaram `http://127.0.0.1`, permitido só em loopback).
+
+## Fase 1 — Manager (histórico)
+229 testes aprovados na época (RBAC, auditoria, API do Agent, web); smoke HTTP 7/7; `composer audit`/`npm audit` limpos; `audit:verify` íntegro. Hoje coberto pelos 278 testes acima.

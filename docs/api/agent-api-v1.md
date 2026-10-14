@@ -93,28 +93,37 @@ Reativação/substituição: token emitido com `replaces_endpoint_id` associa a 
 ```
 Resposta: `{ "server_time": "…", "config_version": 3, "tasks_available": true, "cancel_task_ids": [], "update_available": null }`
 
-### POST /inventory   (idempotente por `snapshot_id`)
-Contém seções com estado de coleta (`ok | unavailable | error`) por seção:
+### POST /inventory   (idempotente por `snapshot_id`; corpo ≤ 4 MiB)
+Cada seção traz seu estado de coleta (`ok | unavailable | error`); **seções omitidas não alteram nada**. Implementado e testado (`InventoryRequest`): campos fora da lista abaixo são descartados, textos sem caracteres de controle, limites por lista (software ≤ 5000 itens, interfaces ≤ 64, etc.).
 ```json
-{ "snapshot_id": "uuid", "collected_at": "…",
+{ "snapshot_id": "uuid", "collected_at": "2026-10-14T12:00:00Z",
   "sections": {
-    "system":   { "status":"ok", "data": { "manufacturer":"", "model":"", "serial":"", "os":{…}, "boot_time":"…", "domain":"", "arch":"x64" } },
-    "hardware": { "status":"ok", "data": { "cpus":[…], "memory_total_mb":16384, "disks":[…], "volumes":[…], "gpus":[…], "baseboard":{…}, "bios":{…}, "monitors":[…], "printers":[…] } },
-    "software": { "status":"ok", "data": { "items":[ { "name":"", "version":"", "publisher":"", "install_date":"2025-01-01", "arch":"x64", "source":"HKLM64" } ] } },
-    "network":  { "status":"ok", "data": { "interfaces":[ { "name":"", "mac":"", "ips":[""], "type":"Ethernet", "up":true } ] } },
-    "peripherals": { "status":"unavailable", "reason":"access_denied" }
+    "system":   { "status":"ok", "data": { "hostname":"", "manufacturer":"", "model":"", "serial":"", "os":{"name":"","version":"","build":"","arch":"x64"}, "boot_time":"…", "domain":"", "workgroup":"" } },
+    "hardware": { "status":"ok", "data": { "cpus":[{"name":"","cores":10,"threads":12,"max_mhz":1700}], "memory_total_mb":16384,
+                  "disks":[{"model":"","serial":"","size_gb":476.9,"interface_type":"","media_type":""}],
+                  "volumes":[{"mount":"C:","label":"","file_system":"NTFS","total_gb":475.9,"free_gb":210.4,"used_percent":55.8}],
+                  "gpus":[{"name":"","driver_version":"","vram_mb":128}], "baseboard":{"manufacturer":"","product":"","serial":""},
+                  "bios":{"vendor":"","version":"","release_date":"2024-03-01"},
+                  "not_detected":[{"component":"gpus","reason":"access_denied"}] } },
+    "software": { "status":"ok", "data": { "items":[ { "name":"", "version":"", "publisher":"", "install_date":"2025-01-01", "arch":"x64", "source":"HKLM64|HKLM32|HKU" } ], "truncated": false } },
+    "network":  { "status":"ok", "data": { "interfaces":[ { "name":"", "description":"", "type":"Ethernet", "mac":"AA:BB:CC:DD:EE:FF", "ips":[""], "up":true, "speed_mbps":1000 } ] } },
+    "peripherals": { "status":"ok", "data": { "monitors":[{"name":"","manufacturer":"","serial":"","year":2023}], "printers":[{"name":"","driver":"","port":"","is_default":true,"is_network":false}], "not_detected":[] } }
   } }
 ```
-Resposta `202` `{ "accepted": true, "snapshot_id": "…" }`; repetição do mesmo `snapshot_id` → `200` sem reprocessar.
+Semântica no Manager:
+- `ok` **substitui** o dado da seção; `unavailable`/`error` **mantém o último dado bom** e registra o estado da coleta (a UI mostra "Indisponível (motivo)" e o último dado válido).
+- `not_detected` separa "consultado e não existe" de "não pôde ser consultado".
+- Software: item que some de uma coleta **completa** recebe `removed_at`; se reaparecer, volta a ativo. Lista com `truncated: true` nunca marca remoções.
+- Rede: a lista de interfaces é substituída por inteiro.
+- Resposta `202 { "accepted": true, "snapshot_id": "…" }`; mesmo `snapshot_id` já recebido → `200` sem reprocessar; `snapshot_id` de outro endpoint → `422`.
+- Corpo acima do limite → `413 payload.too_large` (antes de ler/hashear o corpo).
 
-### POST /metrics   (lote, ≤ 120 amostras)
+### POST /metrics   (lote, ≤ 120 amostras; corpo ≤ 1 MiB)
 ```json
 { "samples": [ { "sample_id":"uuid", "at":"…", "cpu_percent":12.5, "mem_total_mb":16384, "mem_available_mb":8000,
-  "uptime_seconds":1234, "volumes":[{"mount":"C:","total_gb":476,"free_gb":210}], "temperature_c": null,
-  "services":[{"name":"Spooler","state":"Running"}] } ] }
+  "uptime_seconds":1234, "volumes":[{"mount":"C:","total_gb":476,"free_gb":210}], "temperature_c": null } ] }
 ```
-Idempotência por `sample_id`. Resposta `202 { "accepted": n, "duplicates": m }`.
-
+Idempotência por `(endpoint, sample_id)`. Amostras mais antigas que a retenção (7 dias) ou com `at` mais de 10 min no futuro são recusadas **individualmente**. Resposta `202 { "accepted": n, "duplicates": m, "rejected": k }`. Estado de serviços Windows monitorados entra na task 007 (não implementado). `temperature_c` só é enviado quando houver leitura confiável (hoje sempre `null`/omitido).
 ### POST /events   (lote)
 `{ "events":[ { "event_id":"uuid", "at":"…", "level":"error", "source":"System", "code":"7031", "message":"…(≤2 KiB)" } ] }`
 

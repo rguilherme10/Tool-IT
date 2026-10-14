@@ -51,14 +51,13 @@ Princípios:
 
 ## 3. Componentes do Agent (C#)
 
-Solução `agent/Toolit.Agent.sln`:
+Solução `agent/Toolit/Toolit.sln` (ADR-014):
 
-- `Toolit.Agent.Contracts` — DTOs/serialização do protocolo (compartilhado com testes).
-- `Toolit.Agent.Core` — identidade, comunicação, fila local, executor, política.
-- `Toolit.Agent.Collectors` — inventário e métricas.
-- `Toolit.Agent.Service` — host Worker Service (`UseWindowsService`).
-- `Toolit.Agent.CaptureHelper` — processo na sessão do usuário (somente captura).
-- `Toolit.Agent.Tests` — xUnit.
+- `Toolit/` (`AgentToolit.csproj`) — host Worker Service (`UseWindowsService`), comandos `enroll`, `status`, `rotate-key`, workers.
+- `AgentToolit.Core` — protocolo (assinatura, DTOs), identidade (ECDSA + DPAPI), `ManagerClient`, fila SQLite, logs com redação, `HeartbeatService`, `SenderService`.
+- `AgentToolit.Collectors` — coletores de inventário (sistema, hardware, software, rede, periféricos) e de métricas.
+- `AgentToolit.Tests` — xUnit (inclui leituras reais do Windows e o vetor de contrato com o Manager).
+- Planejado, não implementado: executor de tarefas (008), `CaptureHelper` (010), atualizador (012).
 
 ## 4. Identidade e autenticação do Agent (resumo; ver ADR-004)
 

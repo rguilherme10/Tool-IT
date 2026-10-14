@@ -51,5 +51,6 @@ Avaliador com relógio simulado (duração, histerese, repetição, recuperaçã
 ## Riscos
 Contadores de desempenho localizados no Windows (usar índices em inglês via API `PdhAddEnglishCounter`).
 
-## Checklist
-- [ ] Coleta - [ ] Ingestão - [ ] Alertas - [ ] Retenção - [ ] UI - [ ] Testes - [ ] Medições - [ ] Docs
+## Checklist (estado em 2026-10-14)
+- [x] Coleta de métricas básicas (CPU, memória, volumes, uptime) - [x] Ingestão idempotente - [x] Retenção bruta 7 d (`metrics:prune`, agendado) - [x] UI (cartões, gráfico SVG, tabela) - [x] Testes
+- [ ] Serviços Windows monitorados - [ ] Eventos de erro relevantes - [ ] **Regras de alerta** (duração mínima, histerese, repetição) - [ ] Rollup horário - [ ] Conectividade/versão desatualizada - [ ] Temperatura (só com fonte confiável)

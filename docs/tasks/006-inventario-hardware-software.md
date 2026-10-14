@@ -51,5 +51,6 @@ Unit dos parsers (Registro simulado via interface), contrato JSON, ingestão ide
 ## Riscos
 Variação entre versões do Windows; ARM64 sem testes (documentar).
 
-## Checklist
-- [ ] Coletores - [ ] Ingestão - [ ] UI - [ ] Política de arquivos - [ ] Testes - [ ] Medições - [ ] Docs
+## Checklist (estado em 2026-10-14)
+- [x] Coletores system/hardware/software/rede/periféricos (reais, testados) - [x] Ingestão idempotente - [x] UI (abas Hardware, Software, Rede) - [x] Testes (Manager 25+ e Agent) - [x] Medição (≈ 1 s, 19 KiB, 1 máquina) - [x] Docs de contrato
+- [ ] **Política de inventário de arquivos** (diretórios autorizados, exclusões, profundidade, hash opcional, cancelamento) — não iniciada - [ ] Validar em Windows 10 e ARM64 - [ ] Histórico de mudanças de hardware (hoje só software)

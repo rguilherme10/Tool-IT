@@ -1,0 +1,13 @@
+<Project>
+  <!-- TargetFramework centralizado (ADR-010): migrar para net10.0 (LTS) = trocar esta linha quando o SDK 10 estiver instalado. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AnalysisLevel>latest-minimum</AnalysisLevel>
+    <Deterministic>true</Deterministic>
+    <!-- O Agent e somente Windows por definicao; evita ruido CA1416 em chamadas Windows. -->
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+</Project>

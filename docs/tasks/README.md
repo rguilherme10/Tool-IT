@@ -15,9 +15,9 @@ Regras para o agente executor:
 | 002 | Infraestrutura e segurança | 1 | 001 | parcial (headers, rate limits) |
 | 003 | Modelo de dados e autenticação | 1 | 001,002 | ✔ em SQLite · MySQL pendente |
 | 004 | API de comunicação | 1 | 003 | ✔ enroll/heartbeat/rotação/revogação · demais rotas nas tasks 006–012 |
-| 005 | Agent Windows e provisionamento | 2 | 004 | pendente |
-| 006 | Inventário hardware/software | 2 | 005 | pendente |
-| 007 | Monitoramento e alertas | 2 | 005,006 | pendente |
+| 005 | Agent Windows e provisionamento | 2 | 004 | ✔ código e testes · serviço real pendente (sem Administrador) |
+| 006 | Inventário hardware/software | 2 | 005 | ✔ inventário · política de arquivos pendente |
+| 007 | Monitoramento e alertas | 2 | 005,006 | parcial (métricas) · alertas pendentes |
 | 008 | Tarefas e comandos remotos | 3 | 004,005 | pendente |
 | 009 | Transferência de arquivos | 3 | 008 | pendente |
 | 010 | Suporte remoto de tela | 4 | 005,008 | pendente |

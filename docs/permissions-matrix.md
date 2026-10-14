@@ -5,6 +5,7 @@ Permissões são strings `modulo.acao` definidas em `App\Enums\Permission` (font
 | Permissão | Admin | Operador TI | Suporte | Auditor | Consulta |
 |---|:-:|:-:|:-:|:-:|:-:|
 | `inventory.view` | ✔ | ✔ | ✔ | ✔ | ✔ (limitado*) |
+| `inventory.view_sensitive` (software completo, IPs/MACs, usuário logado) | ✔ | ✔ | ✔ | ✔ | – |
 | `metrics.view` | ✔ | ✔ | ✔ | ✔ | ✔ |
 | `alerts.view` | ✔ | ✔ | ✔ | ✔ | ✔ |
 | `alerts.manage` (reconhecer/fechar) | ✔ | ✔ | ✔ | – | – |

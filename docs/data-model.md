@@ -23,11 +23,21 @@ Banco alvo: MySQL 8.0+ (InnoDB, utf8mb4) — ver ADR-002. Convenções Laravel (
 | `enrollment_tokens` | token_hash (único), endpoint_group_id, created_by, expires_at, max_uses, uses, replaces_endpoint_id, revoked_at | |
 | `agent_nonces` | (cache; não é tabela) | TTL 5 min |
 
-## Inventário (Fase 2)
-`hardware_inventory` (1:1 endpoint; JSON por seção + `section_status`), `network_interfaces`, `software_inventory` (único endpoint+nome+versão+source, `last_seen_at`, `removed_at`), `peripheral_inventory`, `inventory_snapshots` (snapshot_id único para idempotência; payload não guardado, só metadados e hash).
+## Inventário (Fase 2) ✔ implementado
+| Tabela | Conteúdo | Restrições/Índices |
+|---|---|---|
+| `endpoint_inventories` | **Estado atual** 1:1 com o endpoint: `system`, `hardware`, `peripherals` (JSON) + `section_status` (estado da última coleta por seção, com motivo e hora) | `endpoint_id` único |
+| `software_items` | Um registro por (nome, versão, arch, origem): `first_seen_at`, `last_seen_at`, `removed_at` | único `(endpoint_id, identity_hash)` — hash porque UNIQUE com colunas NULL não protege; índices `(endpoint_id, name)` e `(endpoint_id, removed_at)` |
+| `network_interfaces` | Interfaces (substituídas a cada coleta `ok`) | índices `endpoint_id`, `mac` |
+| `inventory_snapshots` | Só metadados do envio: `snapshot_id` único (idempotência), estado das seções, `changes` (software adicionado/removido/reaparecido), hash do payload. **O payload não é guardado.** | `(endpoint_id, received_at)` |
+
+Não implementado: `peripheral_inventory` separado (periféricos ficam em `endpoint_inventories.peripherals`), `file_inventory_*` (política de arquivos — pendente na task 006).
 
 ## Monitoramento (Fase 2/3)
-`metric_samples` (endpoint_id, sampled_at, cpu, mem, uptime; único (endpoint, sample_id); índice (endpoint, sampled_at)) — raw 7 dias; `metric_rollups_hourly` — 13 meses; `volume_samples` junto ao rollup; `windows_services` (estado atual + monitorados); `process_snapshots` (somente sob demanda, TTL 24 h); `alert_rules`, `alerts` (estado: open/ack/resolved; `first_seen_at`, `last_seen_at`, dedupe_key único aberto), `endpoint_events` (TTL 30 dias).
+| Tabela | Estado | Notas |
+|---|---|---|
+| `metric_samples` | ✔ | Histórico bruto, sem `created_at`/`updated_at`; único `(endpoint_id, sample_id)`; índices `(endpoint_id, sampled_at)` e `sampled_at`; retenção por `metrics:prune` (padrão 7 dias, agendado 03:15) |
+| `metric_rollups_hourly`, `windows_services`, `process_snapshots`, `alert_rules`, `alerts`, `endpoint_events` | pendente (task 007/008) | Agregação horária ainda **não** existe: hoje o histórico é só o bruto de 7 dias |
 
 ## Tarefas e arquivos (Fase 3)
 `remote_tasks` (uuid, endpoint_id, type, params json, risk, status, requested_by, approved_by, idempotency_key único por (requested_by), expires_at, max_attempts, ...), `remote_task_attempts` (attempt uuid, started/finished, exit_code, stdout/stderr limitados, duration), `file_inventory_policies`, `file_inventory_items`, `file_transfers` (direção, caminho canônico, size, sha256, status, retention_until).

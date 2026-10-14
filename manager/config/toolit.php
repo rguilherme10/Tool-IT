@@ -29,6 +29,10 @@ return [
         'require_mfa_for_admins' => (bool) env('TOOLIT_REQUIRE_MFA_ADMINS', true),
     ],
 
+    'retention' => [
+        'metrics_days' => (int) env('TOOLIT_RETENTION_METRICS_DAYS', 7),
+    ],
+
     'audit' => [
         'retention_months' => 24,
     ],

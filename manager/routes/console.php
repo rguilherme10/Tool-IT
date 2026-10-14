@@ -1,8 +1,6 @@
 <?php
 
-use Illuminate\Foundation\Inspiring;
-use Illuminate\Support\Facades\Artisan;
+use Illuminate\Support\Facades\Schedule;
 
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
+// Retenção do histórico de métricas (docs/data-model.md). Exige `schedule:run` a cada minuto (docs/deployment/server.md).
+Schedule::command('metrics:prune')->dailyAt('03:15')->onOneServer()->withoutOverlapping();

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk.Worker">
+
+  <PropertyGroup>
+    <UserSecretsId>dotnet-Toolit-cec8db0a-8793-4b5b-918c-e20d4c783e67</UserSecretsId>
+    <Version>0.1.0</Version>
+    <Product>Toolit Agent</Product>
+    <Company>Toolit</Company>
+    <!-- Sem trimming/AOT: o Agent usa WMI/Registro/reflexão do System.Management. -->
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Extensions.Hosting" Version="8.0.1" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.WindowsServices" Version="8.0.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\AgentToolit.Core\AgentToolit.Core.csproj" />
+    <ProjectReference Include="..\AgentToolit.Collectors\AgentToolit.Collectors.csproj" />
+  </ItemGroup>
+</Project>

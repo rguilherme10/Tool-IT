@@ -3,7 +3,7 @@
 Plataforma própria para 50–100 PCs/notebooks Windows em rede corporativa local:
 
 - **Manager** (`manager/`) — Laravel 13: painel web, API do Agent, usuários/RBAC, auditoria.
-- **Agent** (`agent/`) — serviço Windows em C#/.NET *(ainda não implementado — Fase 2)*.
+- **Agent** (`agent/Toolit/`) — Worker Service Windows em C#/.NET: registro seguro, heartbeat, inventário (hardware, software, rede, periféricos) e métricas. Serviço instalado como Windows Service: **ainda não validado** (ver `docs/status.md`).
 
 > Estado real, módulo a módulo: [`docs/status.md`](docs/status.md). Nada é marcado como pronto sem teste executado ([`docs/test-evidence.md`](docs/test-evidence.md)).
 
@@ -30,7 +30,7 @@ Detalhes: [`docs/architecture.md`](docs/architecture.md) · decisões: [`docs/de
 | MySQL | 8.0+ (ou MariaDB 10.6+) | alvo de produção (Laragon) — **ainda não validado**, ver `known-limitations.md` |
 | Redis | 6+ | produção; opcional em desenvolvimento |
 | Node | 20+ | build do front-end |
-| .NET SDK | 10 (LTS) | Agent — Fase 2 |
+| .NET SDK | 8+ (alvo `net8.0`; 10 LTS recomendado) | Agent — `dotnet test` / `publish` |
 
 ## Início rápido (desenvolvimento, SQLite)
 
@@ -47,23 +47,24 @@ php artisan serve
 
 Entre em `http://127.0.0.1:8000`; o administrador será levado a ativar o TOTP antes de usar o painel.
 Para registrar um agente: **Novo agente** no painel (ou `php artisan toolit:enrollment-token --user=voce@empresa.local`).
-Teste ponta a ponta do protocolo sem Agent C#: `php tests/integration/agent-smoke.php http://127.0.0.1:8000 <token>`.
+Com o Agent real: veja [`agent/README.md`](agent/README.md). Teste do protocolo sem o Agent C#: `php tests/integration/agent-smoke.php http://127.0.0.1:8000 <token>`.
 
 ### Testes
 
 ```bash
-cd manager && php artisan test        # SQLite em memória
+cd manager && php artisan test        # SQLite em memória (278 testes)
 composer audit && npm audit
+cd ../agent/Toolit && dotnet test Toolit.sln   # 100 testes (inclui leituras reais do Windows)
 ```
 
 ## Estrutura do repositório
 
 ```
 manager/    aplicação Laravel (código, migrations, testes)
-agent/      solução .NET (Fase 2)
+agent/      solução .NET (Agent: host, Core, Collectors, Tests)
 docs/       arquitetura, API, segurança, planos (docs/tasks), estado e evidências
 deploy/     scripts e modelos de servidor (Fase 5)
-installer/  empacotamento do Agent (Fase 5)
+installer/  Install-ToolitAgent.ps1 (serviço) · MSI/GPO/atualização na task 012
 tests/      contratos compartilhados (tests/contracts) e testes de integração (tests/integration)
 ```
 
