@@ -1,0 +1,194 @@
+# Toolit Manager — implantação em Docker (servidor Linux com Docker Engine + Compose v2).
+#
+#   cp .env.example .env   # preencher TODOS os segredos
+#   mkdir certs            # fullchain.pem + privkey.pem (CA corporativa) — ver README
+#   docker compose up -d --build
+#
+# Serviços: web (nginx, TLS) -> app (PHP-FPM) ; migrate (one-shot) ; queue ; scheduler ; mysql ; redis
+# Só a porta HTTPS (e a 80, que redireciona) é publicada. MySQL e Redis ficam na rede interna do compose.
+#
+# NÃO VALIDADO: escrito sem Docker disponível no ambiente de desenvolvimento (docs/known-limitations.md, L25).
+
+name: toolit
+
+x-app-image: &app-build
+  context: ../../manager
+  dockerfile: ../deploy/docker/Dockerfile
+  target: app
+  additional_contexts:
+    docker: .
+
+x-app-env: &app-env
+  APP_NAME: Toolit
+  APP_ENV: production
+  APP_DEBUG: "false"
+  APP_URL: ${APP_URL:?defina APP_URL (https://nome-do-servidor)}
+  APP_KEY: ${APP_KEY:?defina APP_KEY}
+  APP_LOCALE: pt_BR
+  LOG_CHANNEL: stderr
+  LOG_LEVEL: ${LOG_LEVEL:-info}
+
+  DB_CONNECTION: mysql
+  DB_HOST: mysql
+  DB_PORT: "3306"
+  DB_DATABASE: ${DB_DATABASE:-toolit}
+  DB_USERNAME: ${DB_USERNAME:-toolit}
+  DB_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD}
+
+  REDIS_CLIENT: phpredis
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ${REDIS_PASSWORD:?defina REDIS_PASSWORD}
+
+  SESSION_DRIVER: redis
+  SESSION_ENCRYPT: "true"
+  SESSION_SECURE_COOKIE: "true"
+  SESSION_LIFETIME: "30"
+  CACHE_STORE: redis
+  QUEUE_CONNECTION: redis
+
+  # IP real do cliente vem do nginx deste compose (ele sobrescreve X-Forwarded-For). O app (php-fpm:9000) não é publicado.
+  TRUSTED_PROXIES: "*"
+
+  TOOLIT_REQUIRE_MFA_ADMINS: "true"
+  TOOLIT_AGENT_MIN_VERSION: ${TOOLIT_AGENT_MIN_VERSION:-0.1.0}
+
+x-hardening: &hardening
+  security_opt: ["no-new-privileges:true"]
+  restart: unless-stopped
+
+services:
+  web:
+    <<: *hardening
+    build:
+      <<: *app-build
+      target: web
+    image: toolit/manager-web:${TOOLIT_TAG:-local}
+    depends_on:
+      app: { condition: service_healthy }
+    ports:
+      - "${HTTPS_PORT:-443}:8443"
+      - "${HTTP_PORT:-80}:8080"
+    volumes:
+      - ./certs:/etc/nginx/certs:ro
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    networks: [edge, backend]
+    healthcheck:
+      # nginx -> PHP-FPM -> Laravel (/up), por um listener só de loopback (ver nginx/default.conf).
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8081/up || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+  app:
+    <<: *hardening
+    build: *app-build
+    image: toolit/manager:${TOOLIT_TAG:-local}
+    environment: *app-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    volumes:
+      - storage:/var/www/html/storage
+    networks: [backend]
+    healthcheck:
+      test: ["CMD", "php", "-r", "exit(@fsockopen('127.0.0.1', 9000) ? 0 : 1);"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  migrate:
+    # Uma vez por `up`: migra o schema e semeia dados de referência, com o usuário de MIGRAÇÃO (a aplicação não tem DDL).
+    image: toolit/manager:${TOOLIT_TAG:-local}
+    build: *app-build
+    command: ["migrate"]
+    environment:
+      <<: *app-env
+      DB_USERNAME: ${DB_MIGRATE_USERNAME:-toolit_migrator}
+      DB_PASSWORD: ${DB_MIGRATE_PASSWORD:?defina DB_MIGRATE_PASSWORD}
+    depends_on:
+      mysql: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    volumes:
+      - storage:/var/www/html/storage
+    networks: [backend]
+    restart: "no"
+    security_opt: ["no-new-privileges:true"]
+
+  queue:
+    <<: *hardening
+    image: toolit/manager:${TOOLIT_TAG:-local}
+    command: ["queue"]
+    environment: *app-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    volumes:
+      - storage:/var/www/html/storage
+    networks: [backend]
+
+  scheduler:
+    # OBRIGATÓRIO: alerts:evaluate (a cada minuto), metrics:prune e alerts:prune. Parado = nenhum alerta abre nem fecha (L21).
+    <<: *hardening
+    image: toolit/manager:${TOOLIT_TAG:-local}
+    command: ["scheduler"]
+    environment: *app-env
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      redis: { condition: service_healthy }
+    volumes:
+      - storage:/var/www/html/storage
+    networks: [backend]
+
+  mysql:
+    <<: *hardening
+    image: mysql:8.4
+    # trust_function_creators=1: o binlog está ligado e as migrações criam TRIGGERs (auditoria append-only) sem SUPER.
+    # Seguro aqui: só o usuário de migração tem o privilégio TRIGGER.
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci", "--log-bin-trust-function-creators=1"]
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?defina MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${DB_DATABASE:-toolit}
+      APP_DB_USER: ${DB_USERNAME:-toolit}
+      APP_DB_PASSWORD: ${DB_PASSWORD}
+      MIGRATE_DB_USER: ${DB_MIGRATE_USERNAME:-toolit_migrator}
+      MIGRATE_DB_PASSWORD: ${DB_MIGRATE_PASSWORD}
+    volumes:
+      - mysql-data:/var/lib/mysql
+      - ./mysql/init:/docker-entrypoint-initdb.d:ro
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+
+  redis:
+    <<: *hardening
+    image: redis:7-alpine
+    # AOF ligado: o cache de nonces (anti-replay do Agent) e as sessões sobrevivem a reinício.
+    command: ["sh", "-c", "exec redis-server --requirepass \"$$REDIS_PASSWORD\" --appendonly yes --save 300 1 --maxmemory 256mb --maxmemory-policy noeviction"]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    volumes:
+      - redis-data:/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+networks:
+  edge: {}      # única com portas publicadas (via web)
+  backend: {}   # app, filas, MySQL e Redis; nada publicado
+
+volumes:
+  mysql-data: {}
+  redis-data: {}
+  storage: {}   # logs/cache de views do Laravel

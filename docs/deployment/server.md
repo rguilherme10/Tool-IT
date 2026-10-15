@@ -1,5 +1,7 @@
 # Instalação do servidor (Manager) — Laragon / Windows
 
+> Para servidor com Docker, veja [`docker.md`](docker.md).
+
 > **Estado: guia de projeto, NÃO validado em um Laragon real.** O host de desenvolvimento não tem MySQL, Redis nem Laragon. Cada passo abaixo deve ser executado e conferido na primeira instalação; corrija este documento com o que for diferente. Fica pendente na task 013/014.
 
 ## 1. Requisitos

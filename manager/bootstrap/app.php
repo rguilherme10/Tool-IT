@@ -30,6 +30,13 @@ return Application::configure(basePath: dirname(__DIR__))
             'mfa.admin' => EnsureTwoFactorForAdmins::class,
         ]);
 
+        // Atrás de um proxy reverso (nginx do Docker): IP real do cliente e esquema HTTPS vêm dos cabeçalhos X-Forwarded-*.
+        // Sem TRUSTED_PROXIES nada é confiado (padrão). Isto importa: o IP alimenta limites de taxa, auditoria e bloqueio de login.
+        $middleware->trustProxies(
+            at: env('TRUSTED_PROXIES') ? array_map('trim', explode(',', (string) env('TRUSTED_PROXIES'))) : null,
+            headers: Request::HEADER_X_FORWARDED_FOR | Request::HEADER_X_FORWARDED_HOST | Request::HEADER_X_FORWARDED_PORT | Request::HEADER_X_FORWARDED_PROTO,
+        );
+
         $middleware->append(SecurityHeaders::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

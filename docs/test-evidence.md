@@ -19,6 +19,10 @@ Cada linha é um resultado **observado** (2026-10-14). Ambiente: Windows 11 Home
 4. **Criação de usuário:** e-mail igual a um existente diferindo só em maiúsculas passava na validação e causava erro 500 (SQLite diferencia maiúsculas; MySQL não) → e-mail normalizado antes de validar.
 5. Rotas das telas administrativas sem `use` dos controladores (erro 500 em todos os testes de tela).
 
+## Implantação em Docker — o que foi e o que NÃO foi verificado (2026-10-14)
+**Verificado:** `sh -n` nos 3 scripts (entrypoint, init do MySQL, certificado); `compose.yaml` lido por um parser YAML (7 serviços, âncoras/merges resolvidos: `migrate` usa `DB_MIGRATE_*` e a aplicação `DB_*`; só o `web` publica portas); `make-selfsigned.sh` executado de verdade (gera EC P-256 com SAN; no Git Bash do Windows precisa de `MSYS_NO_PATHCONV=1`, que converte `/CN=` — no Linux não); `composer check-platform-reqs --no-dev` lista só extensões já presentes na imagem PHP; `TrustedProxiesTest` (2 testes: cabeçalhos X-Forwarded-* honrados só de proxy confiável); suíte do Manager completa (377 aprovados).
+**NÃO verificado:** `docker build` (nenhum Docker disponível), `docker compose up`, `nginx -t`, init do MySQL, *healthchecks*, criação de *triggers* com o usuário de migração, MySQL e Redis reais. Ver L25.
+
 ### Revisão visual no navegador (2026-10-14)
 Servidor `php artisan serve` com banco SQLite **separado e descartável** (4 computadores, 3 usuários, grupos em árvore, 3 alertas gerados pelo avaliador real; nada disso é dado do projeto). Login com senha + TOTP, depois painel, alertas, regras, grupos, usuários (lista e edição), auditoria (com "Verificar integridade da cadeia": *"Cadeia íntegra: 12 registros verificados"*), computadores e detalhe com "Gerenciar computador". Problemas encontrados e corrigidos:
 1. `/alerts` ultrapassava a largura no celular (563 px em 375 px): `<span class="sr-only">` (posição absoluta) escapava do `overflow-x-auto` da tabela → `relative` no `<th>` (também na aba de alertas do computador). Depois: 9 páginas medidas a 375 px, nenhuma com rolagem horizontal.
