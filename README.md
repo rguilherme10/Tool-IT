@@ -1,4 +1,4 @@
-# Toolit — inventário e administração remota de endpoints Windows
+# Tool-IT — inventário e administração remota de endpoints Windows
 
 Plataforma própria para 50–100 PCs/notebooks Windows em rede corporativa local:
 
