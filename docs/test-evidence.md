@@ -2,6 +2,17 @@
 
 Cada linha é um resultado **observado** (2026-10-14). Ambiente: Windows 11 Home Single Language 10.0.26300, **sessão sem privilégios de Administrador**, PHP 8.4.1, Composer 2.8.10, Laravel 13, PHPUnit 12 (SQLite em memória), .NET SDK 9.0.308 compilando `net8.0`, 12 CPUs lógicas, 36 GB de RAM. **Sem MySQL, Redis ou Laragon.**
 
+## Manager — histórico de mudanças do inventário (2026-10-15)
+
+| Teste | Comando | Resultado |
+|---|---|---|
+| Suíte do Manager | `cd manager && php artisan test` | **395 aprovados / 2 falhas** (1721 asserções), SQLite em memória. As 2 falhas (`TrustedProxiesTest` "ignored from anyone else" e `HeadersTest` "security headers are present") já ocorriam **antes** destas mudanças (baseline do mesmo dia: 375 aprovados / 2 falhas) e **não** foram investigadas — ver L28 |
+| Diff do inventário | `tests/Unit/InventoryDiffTest` (10) | ignora espaço livre/uso, IP e boot; memória/disco/GPU adicionados, removidos e trocados; teto de 100 entradas |
+| Ingestão | `InventoryIngestTest` (+4 novos) | `changes` com diff de memória/SO/rede, nomes de software (teto 50), `initial` na primeira coleta, `changes` nulo sem mudança, seção indisponível não gera diff. Um bug real foi pego pelo teste: nomes saíam como objeto JSON (chaveados por hash) |
+| Aba Histórico | `EndpointTabsTest` (+5) | estado vazio, dados reais, escape de HTML, perfil Consulta não vê software/rede, escopo por grupo (404), paginação |
+| Estilo | `vendor/bin/pint --test app tests` | limpo |
+| **Não verificado** | — | aba Histórico não foi vista no navegador; MySQL (L1) não exercitado; nenhum teste com um Agent real |
+
 ## Manager — alertas e administração pela interface (2026-10-14)
 
 | Teste | Comando | Resultado |

@@ -185,6 +185,7 @@ class EndpointTabsTest extends TestCase
 
         $this->actingAs($this->userWithRole(RoleKey::Operator))->get($this->url('metrics'))->assertSee('Nenhuma métrica recebida');
     }
+
     /** Segunda coleta com mudanças de memória, SO, rede e software (a primeira é a base). */
     private function sendInventoryWithChanges(): void
     {
