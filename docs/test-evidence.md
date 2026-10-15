@@ -2,6 +2,35 @@
 
 Cada linha é um resultado **observado** (2026-10-14). Ambiente: Windows 11 Home Single Language 10.0.26300, **sessão sem privilégios de Administrador**, PHP 8.4.1, Composer 2.8.10, Laravel 13, PHPUnit 12 (SQLite em memória), .NET SDK 9.0.308 compilando `net8.0`, 12 CPUs lógicas, 36 GB de RAM. **Sem MySQL, Redis ou Laragon.**
 
+## Manager — alertas e administração pela interface (2026-10-14)
+
+| Teste | Comando | Resultado |
+|---|---|---|
+| Suíte do Manager | `cd manager && php artisan test` | **375 aprovados / 0 falhas** (1620 asserções), SQLite em memória |
+| Estilo / vulnerabilidades | `vendor/bin/pint`; `composer audit` | aplicado; nenhuma vulnerabilidade |
+| Avaliador de alertas | `AlertEvaluationTest` (24) + `SustainedConditionTest` | duração mínima, histerese, repetição, reconhecimento, resolução, dedupe, escopo, endpoint desativado/removido |
+| Telas | `AlertsUiTest`, `AlertRulesUiTest`, `GroupsUiTest`, `UsersUiTest`, `AuditUiTest`, `EndpointManagementTest` | 403/404 por papel e escopo, validação, auditoria dos efeitos, escape de HTML, filtros server-side |
+| **E2E com Agent real** (`AgentToolit.exe` publicado + `schedule:work`) | execução manual | alerta de memória abriu **2 min 05 s** após a 1ª amostra (regra de 2 min); alerta *agente offline* abriu **77 s** após o último contato e **resolveu sozinho 47 s** após o retorno; cadeia de auditoria íntegra; reconhecimento pela UI via curl (login + CSRF: 419 sem token, 302 com) |
+
+### Bugs reais encontrados e corrigidos
+1. **E2E:** regras curtas nunca abriam — a janela tinha só ~30 s de dados quando a duração era alcançada. `SustainedCondition` passou a tolerar `min(lacuna, duração/4)` no início da janela + testes de regressão.
+2. **E2E:** a variável `DB_DATABASE` exportada no shell vazou para o PHPUnit e apagou o banco do E2E → `force="true"` no `phpunit.xml` e recusa no `TestCase` se o banco não for o de teste (verificado).
+3. Título de alerta offline "há 1 min (limite 1 min)" → exibe segundos quando < 120 s.
+4. **Criação de usuário:** e-mail igual a um existente diferindo só em maiúsculas passava na validação e causava erro 500 (SQLite diferencia maiúsculas; MySQL não) → e-mail normalizado antes de validar.
+5. Rotas das telas administrativas sem `use` dos controladores (erro 500 em todos os testes de tela).
+
+### Revisão visual no navegador (2026-10-14)
+Servidor `php artisan serve` com banco SQLite **separado e descartável** (4 computadores, 3 usuários, grupos em árvore, 3 alertas gerados pelo avaliador real; nada disso é dado do projeto). Login com senha + TOTP, depois painel, alertas, regras, grupos, usuários (lista e edição), auditoria (com "Verificar integridade da cadeia": *"Cadeia íntegra: 12 registros verificados"*), computadores e detalhe com "Gerenciar computador". Problemas encontrados e corrigidos:
+1. `/alerts` ultrapassava a largura no celular (563 px em 375 px): `<span class="sr-only">` (posição absoluta) escapava do `overflow-x-auto` da tabela → `relative` no `<th>` (também na aba de alertas do computador). Depois: 9 páginas medidas a 375 px, nenhuma com rolagem horizontal.
+2. Tempos relativos em inglês ("2 minutes ago") → `Carbon::setLocale('pt_BR')`.
+3. "Último acesso: nunca UTC" → só acrescenta UTC quando há data.
+4. Campos de data da auditoria espremidos (`dd/mm/…` cortado) → ocupam 2 colunas.
+5. Nome clicável (grupos, regras, usuários) parecia texto simples → cor de link.
+Observação: a barra de navegação passa para 2 linhas abaixo de ~1000 px (aceitável, sem quebra).
+
+### Não validado
+Chrome/Edge/Firefox reais e dispositivo físico (L24); MySQL/Redis (L1); encerramento de sessões com driver diferente de `database` (L20); agendador em produção (precisa de `schedule:run` a cada minuto, L21).
+
 ## Fase 2 — Agent + Manager
 
 | Teste | Comando | Resultado |

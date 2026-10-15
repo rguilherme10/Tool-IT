@@ -4,7 +4,7 @@
 @section('content')
 <h1 class="mb-4 text-xl font-semibold">Computadores</h1>
 
-<form method="GET" class="mb-4 grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-4">
+<form method="GET" class="mb-4 grid gap-3 rounded-lg border border-slate-200 bg-white p-4 md:grid-cols-5">
     <label class="text-sm">Hostname
         <input name="hostname" value="{{ $filters['hostname'] ?? '' }}" class="mt-1 w-full rounded border border-slate-300 px-2 py-1">
     </label>
@@ -24,6 +24,9 @@
             <option value="never" @selected(($filters['status'] ?? '') === 'never')>Nunca visto</option>
         </select>
     </label>
+    <label class="flex items-end gap-2 pb-1.5 text-sm">
+        <input type="checkbox" name="alerts" value="1" @checked(($filters['alerts'] ?? '') === '1')> Somente com alertas ativos
+    </label>
     <div class="flex items-end gap-2">
         <button class="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700">Filtrar</button>
         <a href="{{ route('endpoints.index') }}" class="px-2 py-1.5 text-sm text-slate-600 hover:text-slate-900">Limpar</a>
@@ -38,6 +41,7 @@
                 <th class="px-3 py-2 font-medium">Grupo</th>
                 <th class="px-3 py-2 font-medium">Sistema</th>
                 <th class="px-3 py-2 font-medium">Agente</th>
+                <th class="px-3 py-2 font-medium">Alertas</th>
                 <th class="px-3 py-2 font-medium">Último contato</th>
             </tr>
         </thead>
@@ -50,12 +54,19 @@
                     <td class="px-3 py-2">{{ $endpoint->os_name ?? '—' }}</td>
                     <td class="px-3 py-2">{{ $endpoint->agent_version ?? '—' }}</td>
                     <td class="px-3 py-2">
+                        @if ($endpoint->active_alerts_count > 0)
+                            <a class="rounded-full bg-red-100 px-2 py-0.5 text-xs text-red-800 hover:bg-red-200" href="{{ route('endpoints.show', ['uuid' => $endpoint->uuid, 'tab' => 'alerts']) }}">{{ $endpoint->active_alerts_count }}</a>
+                        @else
+                            <span class="text-slate-400">—</span>
+                        @endif
+                    </td>
+                    <td class="px-3 py-2">
                         <span class="{{ $online ? 'text-emerald-700' : 'text-slate-500' }}">{{ $online ? 'Online' : ($endpoint->last_seen_at ? 'Sem contato' : 'Nunca visto') }}</span>
                         @if ($endpoint->last_seen_at)<span class="text-slate-400"> · {{ $endpoint->last_seen_at->diffForHumans() }}</span>@endif
                     </td>
                 </tr>
             @empty
-                <tr><td colspan="5" class="px-3 py-6 text-center text-slate-500">Nenhum computador encontrado. Registre um agente em “Novo agente”.</td></tr>
+                <tr><td colspan="6" class="px-3 py-6 text-center text-slate-500">Nenhum computador encontrado. Registre um agente em “Novo agente”.</td></tr>
             @endforelse
         </tbody>
     </table>

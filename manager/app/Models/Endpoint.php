@@ -57,6 +57,11 @@ class Endpoint extends Model
         return $this->hasMany(AgentInstallation::class);
     }
 
+    public function alerts(): HasMany
+    {
+        return $this->hasMany(Alert::class);
+    }
+
     public function activeInstallation(): HasOne
     {
         return $this->hasOne(AgentInstallation::class)->where('status', AgentInstallationStatus::Active->value);

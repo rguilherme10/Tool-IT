@@ -31,6 +31,13 @@ return [
 
     'retention' => [
         'metrics_days' => (int) env('TOOLIT_RETENTION_METRICS_DAYS', 7),
+        'alerts_days' => (int) env('TOOLIT_RETENTION_ALERTS_DAYS', 365),
+    ],
+
+    'alerts' => [
+        // Maior intervalo aceitável entre amostras (e idade máxima da última) para concluir que uma condição
+        // "persiste": ≈ 2,5 × o intervalo padrão de métricas (60 s). Menos que isso gera alertas por lacunas.
+        'gap_seconds' => (int) env('TOOLIT_ALERTS_GAP', 150),
     ],
 
     'audit' => [

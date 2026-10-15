@@ -16,6 +16,19 @@
                 @can('inventory.view')
                     <a href="{{ route('endpoints.index') }}" class="hover:text-slate-900">Computadores</a>
                 @endcan
+                @can('alerts.view')
+                    <a href="{{ route('alerts.index') }}" class="hover:text-slate-900">Alertas</a>
+                @endcan
+                @can('settings.manage')
+                    <a href="{{ route('alert-rules.index') }}" class="hover:text-slate-900">Regras de alerta</a>
+                    <a href="{{ route('groups.index') }}" class="hover:text-slate-900">Grupos</a>
+                @endcan
+                @can('users.manage')
+                    <a href="{{ route('users.index') }}" class="hover:text-slate-900">Usuários</a>
+                @endcan
+                @can('audit.view')
+                    <a href="{{ route('audit.index') }}" class="hover:text-slate-900">Auditoria</a>
+                @endcan
                 @can('enrollment.create')
                     <a href="{{ route('enrollment.create') }}" class="hover:text-slate-900">Novo agente</a>
                 @endcan

@@ -52,4 +52,6 @@ Manual do administrador com capturas reais.
 Escopo de UI cresce sem fim: priorizar fluxos de operação.
 
 ## Checklist (por módulo, marcar conforme entregue)
-- [ ] Layout - [ ] Dashboard - [ ] Endpoints - [ ] Detalhe - [ ] Inventário - [ ] Métricas - [ ] Processos/serviços - [ ] Arquivos - [ ] Tarefas - [ ] Transferências - [ ] Sessões - [ ] Alertas - [ ] Usuários/permissões - [ ] Versões - [ ] Auditoria - [ ] Configurações
+- [x] Layout - [x] Dashboard - [x] Endpoints - [x] Detalhe (incl. mover/desativar) - [x] Inventário - [x] Métricas - [ ] Processos/serviços - [ ] Arquivos - [ ] Tarefas - [ ] Transferências - [ ] Sessões - [x] Alertas e regras - [x] Usuários/permissões/grupos - [ ] Versões - [x] Auditoria (filtros + verificação) - [ ] Configurações
+
+> Telas marcadas: validadas por testes HTTP; revisão manual em navegador/celular pendente (L24).

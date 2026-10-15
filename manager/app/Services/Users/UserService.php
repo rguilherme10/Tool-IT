@@ -30,6 +30,24 @@ class UserService
         });
     }
 
+    /** Redefinição pelo administrador. Encerra as sessões do usuário (quando a sessão está no banco). */
+    public function resetPassword(User $user, string $password, ?User $actor = null): void
+    {
+        DB::transaction(function () use ($user, $password, $actor) {
+            $user->forceFill(['password' => $password, 'remember_token' => null])->save();
+            $this->audit->log('user.password_reset', $actor, $user);
+            $this->terminateSessions($user);
+        });
+    }
+
+    /** Derruba as sessões abertas do usuário. Com sessão em Redis/arquivo não há como listar por usuário: documentado. */
+    public function terminateSessions(User $user): void
+    {
+        if (config('session.driver') === 'database') {
+            DB::table(config('session.table', 'sessions'))->where('user_id', $user->id)->delete();
+        }
+    }
+
     public function assignRole(User $user, RoleKey|Role $role, ?EndpointGroup $group = null, ?User $actor = null): RoleAssignment
     {
         $role = $role instanceof Role ? $role : Role::where('key', $role->value)->firstOrFail();
@@ -75,6 +93,10 @@ class UserService
             $user->forceFill(['is_active' => $active])->save();
             $this->audit->log($active ? 'user.activated' : 'user.deactivated', $actor, $user);
             $this->access->flush();
+
+            if (! $active) {
+                $this->terminateSessions($user);
+            }
         });
     }
 

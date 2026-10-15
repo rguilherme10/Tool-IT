@@ -35,9 +35,9 @@ O Agent **recusa** HTTP e certificados não confiáveis. Use um certificado emit
 | Processo | Comando | Como manter |
 |---|---|---|
 | Fila | `php artisan queue:work --tries=3 --max-time=3600` | NSSM (serviço) ou Agendador de Tarefas |
-| Agendador | `php artisan schedule:run` a cada minuto | Agendador de Tarefas |
+| Agendador | `php artisan schedule:run` a cada minuto — **obrigatório**: `alerts:evaluate` (1 min), `metrics:prune` (03:15), `alerts:prune` (03:30). Parado = nenhum alerta abre nem fecha (L21) | Agendador de Tarefas |
 | Tempo real (task 010) | `php artisan reverb:start` | NSSM |
-*(Fila, agendador e Reverb ainda não têm jobs/uso na Fase 1.)*
+*(Fila e Reverb ainda não têm uso; o agendador já é necessário para alertas e retenção.)*
 
 ## 6. Rede
 Firewall: liberar apenas TCP 443 do Manager para a LAN. MySQL e Redis **não** devem ser expostos à rede. DNS: registro A interno para o nome usado no certificado.

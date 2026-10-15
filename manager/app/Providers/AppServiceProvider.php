@@ -6,6 +6,7 @@ use App\Enums\Permission;
 use App\Models\Endpoint;
 use App\Models\User;
 use App\Support\Authorization\AccessResolver;
+use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -24,6 +25,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Model::preventLazyLoading(! $this->app->isProduction());
+
+        // Tempos relativos ("há 2 minutos") em português, independente dos arquivos de idioma do Laravel.
+        Carbon::setLocale('pt_BR');
 
         Password::defaults(function () {
             $rule = Password::min(12)->mixedCase()->numbers();

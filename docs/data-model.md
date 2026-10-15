@@ -37,7 +37,9 @@ Não implementado: `peripheral_inventory` separado (periféricos ficam em `endpo
 | Tabela | Estado | Notas |
 |---|---|---|
 | `metric_samples` | ✔ | Histórico bruto, sem `created_at`/`updated_at`; único `(endpoint_id, sample_id)`; índices `(endpoint_id, sampled_at)` e `sampled_at`; retenção por `metrics:prune` (padrão 7 dias, agendado 03:15) |
-| `metric_rollups_hourly`, `windows_services`, `process_snapshots`, `alert_rules`, `alerts`, `endpoint_events` | pendente (task 007/008) | Agregação horária ainda **não** existe: hoje o histórico é só o bruto de 7 dias |
+| `alert_rules` | ✔ | uuid; `type` (disk, memory, cpu, agent_offline, agent_outdated), `threshold`, `clear_threshold` (histerese), `min_duration_seconds`, `clear_duration_seconds`, `repeat_interval_seconds`, `severity`, escopo opcional `endpoint_group_id` (inclui descendentes), `enabled` |
+| `alerts` | ✔ | uuid; `status` open/acknowledged/resolved; `active_dedupe` (coluna virtual única enquanto ativo → no máximo 1 alerta ativo por regra+endpoint+volume); `opened_at`, `acknowledged_by/at`, `resolved_at`, `resolved_reason`; retenção `alerts:prune` (padrão 180 dias, 03:30) |
+| `metric_rollups_hourly`, `windows_services`, `process_snapshots`, `endpoint_events` | pendente (task 007/008) | Agregação horária ainda **não** existe: hoje o histórico é só o bruto de 7 dias |
 
 ## Tarefas e arquivos (Fase 3)
 `remote_tasks` (uuid, endpoint_id, type, params json, risk, status, requested_by, approved_by, idempotency_key único por (requested_by), expires_at, max_attempts, ...), `remote_task_attempts` (attempt uuid, started/finished, exit_code, stdout/stderr limitados, duration), `file_inventory_policies`, `file_inventory_items`, `file_transfers` (direção, caminho canônico, size, sha256, status, retention_until).

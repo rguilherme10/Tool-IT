@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers\Web;
 
+use App\Enums\AlertStatus;
 use App\Enums\Permission;
 use App\Http\Controllers\Controller;
+use App\Models\Alert;
 use App\Models\Endpoint;
 use App\Models\EndpointGroup;
 use App\Models\EndpointInventory;
@@ -13,6 +15,7 @@ use App\Support\Authorization\AccessResolver;
 use App\Support\Metrics\MetricSeries;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\View\View;
 
@@ -28,12 +31,15 @@ class EndpointController extends Controller
             'hostname' => ['nullable', 'string', 'max:100'],
             'group' => ['nullable', 'string', 'max:36'],
             'status' => ['nullable', 'in:online,offline,never'],
+            'alerts' => ['nullable', 'in:1'],
         ]);
 
         $cutoff = now()->subSeconds(DashboardController::ONLINE_WINDOW_SECONDS);
 
         $endpoints = $this->access->scopeEndpoints(Endpoint::query(), $request->user(), Permission::InventoryView)
             ->with('group:id,name')
+            ->withCount(['alerts as active_alerts_count' => fn ($q) => $q->active()])
+            ->when(($filters['alerts'] ?? null) === '1', fn ($q) => $q->whereHas('alerts', fn ($a) => $a->active()))
             // '!' como escape: portável (MySQL e SQLite); % e _ digitados pelo usuário valem literalmente.
             ->when($filters['hostname'] ?? null, fn ($q, $v) => $q->whereRaw(
                 "hostname LIKE ? ESCAPE '!'",
@@ -74,11 +80,14 @@ class EndpointController extends Controller
         if ($metrics) {
             $tabs += ['metrics' => 'Métricas'];
         }
+        if ($this->access->can($user, Permission::AlertsView, $endpoint)) {
+            $tabs += ['alerts' => 'Alertas'];
+        }
 
         $tab = (string) $request->query('tab', 'details');
         if (! isset($tabs[$tab])) {
             // Aba conhecida mas sem permissão = 403; qualquer outro valor cai em "Detalhes".
-            abort_if(in_array($tab, ['software', 'network', 'metrics'], true), 403);
+            abort_if(in_array($tab, ['software', 'network', 'metrics', 'alerts'], true), 403);
             $tab = 'details';
         }
 
@@ -95,10 +104,29 @@ class EndpointController extends Controller
             'software' => $this->softwareData($request, $endpoint),
             'network' => ['interfaces' => NetworkInterface::where('endpoint_id', $endpoint->id)->orderBy('name')->get()],
             'metrics' => $this->metricsData($request, $endpoint),
-            default => ['audit' => $this->access->canGlobally($user, Permission::AuditView)
-                ? DB::table('audit_logs')->where('endpoint_id', $endpoint->id)->orderByDesc('seq')->limit(20)->get()
-                : null],
+            'alerts' => ['endpointAlerts' => $this->endpointAlerts($endpoint)],
+            default => [
+                'audit' => $this->access->canGlobally($user, Permission::AuditView)
+                    ? DB::table('audit_logs')->where('endpoint_id', $endpoint->id)->orderByDesc('seq')->limit(20)->get()
+                    : null,
+                // Destinos que o usuário também administra (não dá para "empurrar" computador para fora do próprio escopo).
+                'assignableGroups' => $this->access->can($user, Permission::EndpointsManage, $endpoint)
+                    ? EndpointGroup::orderBy('name')->get(['id', 'uuid', 'name'])
+                        ->filter(fn (EndpointGroup $g) => $this->access->canForGroup($user, Permission::EndpointsManage, $g))
+                    : collect(),
+                'canUngroup' => $this->access->canForGroup($user, Permission::EndpointsManage, null),
+            ],
         });
+    }
+
+    /** Ativos + os 20 resolvidos mais recentes. */
+    private function endpointAlerts(Endpoint $endpoint): Collection
+    {
+        $active = Alert::where('endpoint_id', $endpoint->id)->active()->orderByDesc('opened_at')->get();
+        $resolved = Alert::where('endpoint_id', $endpoint->id)->where('status', AlertStatus::Resolved->value)
+            ->orderByDesc('resolved_at')->limit(20)->get();
+
+        return $active->concat($resolved);
     }
 
     /** @return array<string, mixed> */

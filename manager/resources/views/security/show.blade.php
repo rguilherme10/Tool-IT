@@ -4,6 +4,22 @@
 @section('content')
 <h1 class="mb-4 text-xl font-semibold">Segurança da conta</h1>
 
+<section class="mb-4 max-w-xl rounded-lg border border-slate-200 bg-white p-4">
+    <h2 class="mb-2 font-medium">Alterar senha</h2>
+    @if ($errors->updatePassword->any())
+        <ul role="alert" class="mb-3 list-inside list-disc rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">
+            @foreach ($errors->updatePassword->all() as $error)<li>{{ $error }}</li>@endforeach
+        </ul>
+    @endif
+    <form method="POST" action="{{ route('user-password.update') }}" class="space-y-2">
+        @csrf @method('PUT')
+        <input type="password" name="current_password" required autocomplete="current-password" placeholder="Senha atual" class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+        <input type="password" name="password" required autocomplete="new-password" placeholder="Nova senha (mín. 12 caracteres)" class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+        <input type="password" name="password_confirmation" required autocomplete="new-password" placeholder="Confirmar nova senha" class="w-full rounded border border-slate-300 px-2 py-1 text-sm">
+        <button class="rounded bg-slate-900 px-3 py-1.5 text-sm text-white hover:bg-slate-700">Alterar senha</button>
+    </form>
+</section>
+
 <section class="max-w-xl rounded-lg border border-slate-200 bg-white p-4">
     <h2 class="mb-2 font-medium">Verificação em duas etapas (TOTP)</h2>
 

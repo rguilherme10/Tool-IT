@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Support\Str;
 use Laravel\Fortify\Actions\RedirectIfTwoFactorAuthenticatable;
+use Laravel\Fortify\Events\PasswordUpdatedViaController;
 use Laravel\Fortify\Events\RecoveryCodesGenerated;
 use Laravel\Fortify\Events\TwoFactorAuthenticationChallenged;
 use Laravel\Fortify\Events\TwoFactorAuthenticationConfirmed;
@@ -81,6 +82,7 @@ class FortifyServiceProvider extends ServiceProvider
             ]);
         });
 
+        Event::listen(PasswordUpdatedViaController::class, fn ($e) => $audit()->log('auth.password_changed', $e->user, $e->user));
         Event::listen(TwoFactorAuthenticationConfirmed::class, fn ($e) => $audit()->log('auth.2fa_enabled', $e->user, $e->user));
         Event::listen(TwoFactorAuthenticationDisabled::class, fn ($e) => $audit()->log('auth.2fa_disabled', $e->user, $e->user));
         Event::listen(RecoveryCodesGenerated::class, fn ($e) => $audit()->log('auth.2fa_recovery_codes_generated', $e->user, $e->user));

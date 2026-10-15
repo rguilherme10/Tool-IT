@@ -44,6 +44,38 @@
     </section>
 </div>
 
+@can('endpoints.manage', $endpoint)
+<section class="mt-4 rounded-lg border border-slate-200 bg-white p-4">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Gerenciar computador</h2>
+    <div class="grid gap-4 md:grid-cols-2">
+        <form method="POST" action="{{ route('endpoints.group', $endpoint->uuid) }}" class="space-y-2">
+            @csrf
+            <label class="block text-sm">Grupo
+                <select name="group" class="mt-1 w-full rounded border border-slate-300 px-2 py-1">
+                    @if ($canUngroup)<option value="">(sem grupo)</option>@endif
+                    @foreach ($assignableGroups as $g)
+                        <option value="{{ $g->uuid }}" @selected($endpoint->endpoint_group_id === $g->id)>{{ $g->name }}</option>
+                    @endforeach
+                </select>
+            </label>
+            <button class="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100">Mover</button>
+        </form>
+        <form method="POST" action="{{ route('endpoints.status', $endpoint->uuid) }}" class="space-y-2">
+            @csrf
+            @if ($endpoint->status === \App\Enums\EndpointStatus::Disabled)
+                <input type="hidden" name="status" value="active">
+                <p class="text-sm text-amber-700">Este computador está <strong>desativado</strong>: o agente é recusado.</p>
+                <button class="rounded border border-slate-300 px-3 py-1.5 text-sm hover:bg-slate-100">Reativar computador</button>
+            @else
+                <input type="hidden" name="status" value="disabled">
+                <p class="text-sm text-slate-600">Desativar recusa o agente (403) e encerra os alertas, sem apagar o histórico.</p>
+                <button class="rounded border border-red-300 bg-red-50 px-3 py-1.5 text-sm text-red-800 hover:bg-red-100">Desativar computador</button>
+            @endif
+        </form>
+    </div>
+</section>
+@endcan
+
 @if ($audit !== null)
 <section class="mt-4 rounded-lg border border-slate-200 bg-white p-4">
     <h2 class="mb-2 text-sm font-semibold uppercase tracking-wide text-slate-500">Auditoria recente</h2>
