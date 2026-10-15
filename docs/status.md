@@ -25,6 +25,7 @@ RBAC por grupo, auditoria encadeada, login + TOTP, API do Agent (enroll, heartbe
 | Eventos do Windows, serviços monitorados, rollups horários | ❌ pendente | task 007 (lado Agent) |
 | Administração pela interface: auditoria (filtros + verificação da cadeia), grupos (árvore), mover/desativar computador, usuários (criar, papéis com escopo, senha, ativar/desativar, encerrar sessões), troca da própria senha | ✔ testes automatizados (375 no total) + revisão visual no navegador embutido (desktop e 375 px) · ⚠ não testado em Chrome/Edge/Firefox reais | ADR-019; task 011; L24 |
 | Inventário de arquivos por política | ❌ pendente | task 006 |
+| Histórico de mudanças do inventário (hardware/SO/rede/software) | ✔ testes automatizados (2026-10-15) · ⚠ sem revisão visual · aba **Histórico** | `InventoryDiff`; L26, L27 |
 | Histórico/log do endpoint no painel | parcial | auditoria por endpoint + métricas 7 d; sem eventos do Windows |
 
 ## Próximos passos (ordem)
