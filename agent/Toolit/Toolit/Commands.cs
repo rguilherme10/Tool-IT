@@ -204,7 +204,7 @@ internal static class Commands
         }
     }
 
-    private static Dictionary<string, string?> Parse(string[] args)
+    internal static Dictionary<string, string?> Parse(string[] args)
     {
         var result = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < args.Length; i++)

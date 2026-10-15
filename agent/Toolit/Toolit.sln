@@ -11,6 +11,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentToolit.Collectors", "A
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AgentToolit.Tests", "AgentToolit.Tests\AgentToolit.Tests.csproj", "{FFBF8CD5-B76D-4BA5-B20C-18A594F5618E}"
 EndProject
+Project("{54435603-DBB4-11D2-8724-00A0C9A8B90C}") = "ToolitSetup", "ToolitSetup\ToolitSetup.vdproj", "{7658714D-6B05-D38A-DC09-EC16634C847A}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -69,6 +71,12 @@ Global
 		{FFBF8CD5-B76D-4BA5-B20C-18A594F5618E}.Release|x64.Build.0 = Release|Any CPU
 		{FFBF8CD5-B76D-4BA5-B20C-18A594F5618E}.Release|x86.ActiveCfg = Release|Any CPU
 		{FFBF8CD5-B76D-4BA5-B20C-18A594F5618E}.Release|x86.Build.0 = Release|Any CPU
+		{7658714D-6B05-D38A-DC09-EC16634C847A}.Debug|Any CPU.ActiveCfg = Debug
+		{7658714D-6B05-D38A-DC09-EC16634C847A}.Debug|x64.ActiveCfg = Debug
+		{7658714D-6B05-D38A-DC09-EC16634C847A}.Debug|x86.ActiveCfg = Debug
+		{7658714D-6B05-D38A-DC09-EC16634C847A}.Release|Any CPU.ActiveCfg = Release
+		{7658714D-6B05-D38A-DC09-EC16634C847A}.Release|x64.ActiveCfg = Release
+		{7658714D-6B05-D38A-DC09-EC16634C847A}.Release|x86.ActiveCfg = Release
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

@@ -22,7 +22,7 @@ Regras para o agente executor:
 | 009 | Transferência de arquivos | 3 | 008 | pendente |
 | 010 | Suporte remoto de tela | 4 | 005,008 | pendente |
 | 011 | Interface administrativa | 2–5 (incremental) | 003 | pendente |
-| 012 | Instalação, atualização, distribuição | 5 | 005 | pendente |
+| 012 | Instalação, atualização, distribuição | 5 | 005 | parcial: MSI + serviço (não validado em instalação real) · assinatura, atualização assinada, GPO e anéis pendentes |
 | 013 | Testes e hardening | 5 | todas | pendente |
 | 014 | Backup, observabilidade, operação | 5 | 002 | pendente |
 

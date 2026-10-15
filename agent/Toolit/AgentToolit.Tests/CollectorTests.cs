@@ -268,16 +268,16 @@ public class InventoryCollectorTests
     public async Task A_hung_section_times_out_without_blocking_the_inventory()
     {
         var collector = new InventoryCollector([
-            new Stub("hardware", () => { Thread.Sleep(3000); return SectionResult.Success(new { }); }),
+            new Stub("hardware", () => { Thread.Sleep(6000); return SectionResult.Success(new { }); }),
             new Stub("network", () => SectionResult.Success(new { })),
-        ], TimeProvider.System, sectionTimeout: TimeSpan.FromMilliseconds(200));
+        ], TimeProvider.System, sectionTimeout: TimeSpan.FromMilliseconds(500));
 
         var started = DateTime.UtcNow;
         var snapshot = await collector.CollectAsync(default);
 
         Assert.Equal(("error", "timeout"), (snapshot.Sections["hardware"].Status, snapshot.Sections["hardware"].Reason));
         Assert.Equal("ok", snapshot.Sections["network"].Status);
-        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(2.5));
+        Assert.True(DateTime.UtcNow - started < TimeSpan.FromSeconds(5), "o inventário não pode esperar a seção travada terminar");
     }
 
     [Fact]

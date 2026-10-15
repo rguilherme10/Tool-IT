@@ -18,14 +18,15 @@ RBAC por grupo, auditoria encadeada, login + TOTP, API do Agent (enroll, heartbe
 | Métricas: CPU, memória, volumes, uptime (lote, sem WMI) | ✔ | Temperatura: **não coletada** (sem fonte confiável) |
 | Manager: ingestão de inventário/métricas, retenção (`metrics:prune`), abas Hardware/Software/Rede/Métricas | ✔ | Gráfico SVG gerado no servidor |
 | Permissão `inventory.view_sensitive` (Consulta não vê software/IP/MAC/usuário) | ✔ | |
-| Script de instalação do serviço (`installer/Install-ToolitAgent.ps1`) | ⚠ escrito, **serviço não criado em teste** | Sessão sem elevação; validado só em `-DryRun` e guardas de erro |
-| Serviço Windows real: início automático, recuperação, reinício do PC | ❌ **não validado** | Exige Administrador (ver L8) |
+| Instalador MSI (`agent/Toolit/ToolitSetup`, projeto do usuário) com serviço: diálogo de URL/token, `service install/uninstall` no próprio Agent, ações do MSI via `installer/Patch-ToolitMsi.ps1` | ✔ MSI gerado (x64, autossuficiente, 33 MB) e validado nas tabelas e na extração · ⚠ **instalação real não executada** | Sessão sem Administrador; ver `installer/README.md` |
+| Script alternativo `installer/Install-ToolitAgent.ps1` | ⚠ validado em `-DryRun` e guardas | Chama o mesmo `service install` |
+| Serviço Windows real: criação, início automático, recuperação, reinício do PC, atualização do MSI | ❌ **não validado** | Exige Administrador (ver L8) — rodar `ToolitSetup.msi` e registrar em `test-evidence.md` |
 | Alertas (regras, duração mínima, histerese), eventos do Windows, serviços monitorados, rollups horários | ❌ pendente | task 007 |
 | Inventário de arquivos por política | ❌ pendente | task 006 |
 | Histórico/log do endpoint no painel | parcial | auditoria por endpoint + métricas 7 d; sem eventos do Windows |
 
 ## Próximos passos (ordem)
-1. **Instalar e validar o serviço como Administrador** (script + reinício + queda de rede) e registrar em `test-evidence.md`.
+1. **Instalar `ToolitSetup.msi` como Administrador** (interativo e `/qn`), reiniciar o PC, derrubar a rede, atualizar e desinstalar; registrar em `test-evidence.md`.
 2. Validar Manager em MySQL + Redis (Laragon) — L1.
 3. Task 007 (alertas e eventos), depois Fase 3 (tarefas 008, arquivos 009).
 4. Migrar o Agent para `net10.0` quando o SDK 10 estiver instalado (L2).

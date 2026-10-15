@@ -7,7 +7,7 @@ Cada linha é um resultado **observado** (2026-10-14). Ambiente: Windows 11 Home
 | Teste | Comando | Resultado |
 |---|---|---|
 | Suíte do Manager | `cd manager && php artisan test` | **278 aprovados / 0 falhas** (1092 asserções, ≈ 41 s) |
-| Suíte do Agent | `cd agent/Toolit && dotnet test Toolit.sln` | **100 aprovados / 0 falhas** (inclui 6 testes de leitura real do Windows) |
+| Suíte do Agent | `cd agent/Toolit && dotnet test Toolit.sln` | **112 aprovados / 0 falhas** (inclui 6 testes de leitura real do Windows e os do instalador de serviço) |
 | Vetor de contrato PHP↔C# | `SignatureContractTests` + `ContractVectorTest` | String canônica idêntica byte a byte; **assinatura gerada pelo OpenSSL do PHP verificada no .NET** |
 | Vulnerabilidades PHP | `composer audit` | nenhuma |
 | Vulnerabilidades .NET | `dotnet list package --vulnerable --include-transitive --source https://api.nuget.org/v3/index.json` | **nenhuma** após trocar o SQLite embutido pelo `winsqlite3` e fixar 2 pacotes transitivos de teste (antes: 3 avisos *High*). A fonte NuGet corporativa do host (`nexus.tce.go.gov.br`) é inacessível — usar a fonte pública para o scan. |
@@ -49,3 +49,19 @@ Coleta isolada (esta máquina): inventário completo ≈ 1 s e 19 KiB; software 
 
 ## Fase 1 — Manager (histórico)
 229 testes aprovados na época (RBAC, auditoria, API do Agent, web); smoke HTTP 7/7; `composer audit`/`npm audit` limpos; `audit:verify` íntegro. Hoje coberto pelos 278 testes acima.
+
+## Instalador (ToolitSetup + serviço) — 2026-10-14
+Sessão **sem Administrador**. Tudo abaixo foi observado; a instalação real do serviço **não** foi executada.
+
+| Verificação | Resultado |
+|---|---|
+| Agent: `service install/uninstall` | 12 testes novos (sequência de `sc.exe`, `create` vs `config`, tolerância a 1056/1062/1060, falha de passo, timeout até `RUNNING`, validação do caminho, desinstalação); `sc.exe query` **real** de serviço inexistente detectado sem Administrador. Suíte do Agent: **112 aprovados / 0 falhas** |
+| Guardas do comando no `.exe` publicado | sem Administrador → código 3; sem token / token fora do formato `tk_…` (`abc; calc.exe`) → código 2; verbo desconhecido → 2; `--dry-run` lista os comandos `sc.exe` sem executar; o token **não** aparece em `install.log` |
+| Build do MSI headless (`devenv.com … /Project ToolitSetup\ToolitSetup.vdproj`) | 4 projetos OK; evento pós-build `Patch-ToolitMsi: OK (8 ações, diálogo com 12 controles)`; `ToolitSetup.msi` ≈ 33 MB |
+| Tabelas do MSI final (lidas por script independente) | `Template=x64;1046`; `TARGETDIR=[ProgramFiles64Folder][Manufacturer]\[ProductName]`; 229 arquivos (runtime autossuficiente, `winsqlite3`); condição “.NET instalado” removida; 4 pares de ações (imediata + deferida/rollback) com tipos 3170/3362/3106 e sequências 3450/3950/4050/4100; fluxo Folder → **ToolitConfigForm** → Confirm; `SecureCustomProperties` e `MsiHiddenProperties` com o token; tabela Upgrade intacta |
+| Idempotência do patch | executado 2× sobre o mesmo MSI → mesmo resultado, verificação interna OK |
+| Extração real do pacote (`msiexec /a … /qn`, sem elevação) | código 0; 230 arquivos; o `AgentToolit.exe` extraído roda (`--version` = 0.1.0) **sem .NET instalado como dependência** e executa `service install --dry-run` |
+| Varredura de pacotes .NET | nenhum pacote vulnerável nos 4 projetos (a solução não pode mais ser varrida de uma vez por causa do `.vdproj`: L18) |
+
+### Não validado
+`msiexec /i` de verdade (UI e silencioso), criação/início do serviço pelo SCM, recuperação automática após falha, reinício do PC, atualização para versão maior, desinstalação, rollback, GPO/`.mst`, comportamento do enroll sob a conta SYSTEM, e a aparência real do diálogo (só as tabelas foram inspecionadas).

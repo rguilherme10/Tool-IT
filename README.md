@@ -54,7 +54,7 @@ Com o Agent real: veja [`agent/README.md`](agent/README.md). Teste do protocolo 
 ```bash
 cd manager && php artisan test        # SQLite em memória (278 testes)
 composer audit && npm audit
-cd ../agent/Toolit && dotnet test Toolit.sln   # 100 testes (inclui leituras reais do Windows)
+cd ../agent/Toolit && dotnet test Toolit.sln   # 112 testes (inclui leituras reais do Windows)
 ```
 
 ## Estrutura do repositório

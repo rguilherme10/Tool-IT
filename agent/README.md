@@ -14,7 +14,7 @@ Solução em [`Toolit/Toolit.sln`](Toolit/Toolit.sln) (criada pelo dono do proje
 ```powershell
 cd agent\Toolit
 dotnet build Toolit.sln
-dotnet test Toolit.sln                                     # 100 testes
+dotnet test Toolit.sln                                     # 112 testes
 dotnet test Toolit.sln --filter "Category=WindowsReal" --logger "console;verbosity=detailed"   # leituras reais + tempos
 dotnet publish Toolit\AgentToolit.csproj -c Release -o publish
 ```
@@ -36,4 +36,4 @@ $env:TOOLIT_ENROLLMENT_TOKEN = "tk_..."                       # gerado em "Novo 
 - Nenhum shell, nenhuma execução de tarefas ainda (task 008). Nada é ocultado: serviço comum do Windows.
 
 ## Instalação como serviço
-[`installer/Install-ToolitAgent.ps1`](../installer/Install-ToolitAgent.ps1) — **ainda não validado como serviço real** (precisa de Administrador; ver `docs/known-limitations.md` L8).
+Instalador MSI: projeto `agent/Toolit/ToolitSetup` (ver [`installer/README.md`](../installer/README.md)). Comandos do próprio Agent: `service install --server <url> --token <tk_...>` e `service uninstall` (exigem Administrador; `--dry-run` simula). **Ainda não instalado de verdade como serviço** (L8).

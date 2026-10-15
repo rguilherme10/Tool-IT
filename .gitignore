@@ -20,3 +20,9 @@ installer/out/
 # Sistema
 Thumbs.db
 .DS_Store
+
+# Saída do projeto de instalação (Visual Studio Installer Project) e temporários
+agent/**/ToolitSetup/Debug/
+agent/**/ToolitSetup/Release/
+agent/**/ToolitSetup/*.tmp
+build-msi.log

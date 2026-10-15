@@ -20,6 +20,8 @@ switch (args.FirstOrDefault()?.ToLowerInvariant())
         return await Commands.EnrollAsync(args[1..]);
     case "status":
         return Commands.Status();
+    case "service":
+        return await ServiceCommands.RunAsync(args[1..]);
     case "rotate-key":
         return await Commands.RotateKeyAsync();
     case "--version":

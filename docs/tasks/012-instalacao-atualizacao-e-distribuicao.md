@@ -55,3 +55,9 @@ Sem certificado Authenticode: usar assinatura do manifesto + documentar aviso do
 
 ## Checklist
 - [ ] Instalador - [ ] Desinstalador - [ ] Manifesto/assinatura - [ ] Updater - [ ] Rollback - [ ] Anéis - [ ] GPO - [ ] Testes - [ ] Docs
+
+## Progresso (2026-10-14) — instalador MSI (ToolitSetup)
+- [x] MSI do projeto do usuário (`agent/Toolit/ToolitSetup`) com serviço: x64, autossuficiente, diálogo de URL/token, propriedades `SERVERURL`/`ENROLLTOKEN`, token mascarado em log, ações como SYSTEM com cuidados de atualização/rollback (ADR-017).
+- [x] `AgentToolit.exe service install|uninstall` (testado por unidade) e `Install-ToolitAgent.ps1` como alternativa.
+- [ ] **Instalar de verdade como Administrador** (UI e `/qn`), reiniciar, atualizar (aumentar `ProductVersion`), desinstalar, rollback — registrar evidências.
+- [ ] Assinatura do MSI/executável (Authenticode) · [ ] atualização assinada do Agent (manifesto + rollback) · [ ] GPO (`.mst`) documentada e testada · [ ] anéis 5 → intermediário → frota · [ ] versão do MSI automatizada · [ ] entrega do token sem linha de comando (L16).
