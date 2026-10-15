@@ -6,7 +6,7 @@ Cada linha é um resultado **observado** (2026-10-14). Ambiente: Windows 11 Home
 
 | Teste | Comando | Resultado |
 |---|---|---|
-| Suíte do Manager | `cd manager && php artisan test` | **395 aprovados / 2 falhas** (1721 asserções), SQLite em memória. As 2 falhas (`TrustedProxiesTest` "ignored from anyone else" e `HeadersTest` "security headers are present") já ocorriam **antes** destas mudanças (baseline do mesmo dia: 375 aprovados / 2 falhas) e **não** foram investigadas — ver L28 |
+| Suíte do Manager | `cd manager && php artisan test` | **395 aprovados / 2 falhas** (1721 asserções; depois de fixar `APP_URL` no `phpunit.xml`: **397 aprovados / 0 falhas**), SQLite em memória. As 2 falhas (`TrustedProxiesTest` "ignored from anyone else" e `HeadersTest` "security headers are present") já ocorriam **antes** destas mudanças (baseline do mesmo dia: 375 aprovados / 2 falhas) e **não** foram investigadas — ver L28 |
 | Diff do inventário | `tests/Unit/InventoryDiffTest` (10) | ignora espaço livre/uso, IP e boot; memória/disco/GPU adicionados, removidos e trocados; teto de 100 entradas |
 | Ingestão | `InventoryIngestTest` (+4 novos) | `changes` com diff de memória/SO/rede, nomes de software (teto 50), `initial` na primeira coleta, `changes` nulo sem mudança, seção indisponível não gera diff. Um bug real foi pego pelo teste: nomes saíam como objeto JSON (chaveados por hash) |
 | Aba Histórico | `EndpointTabsTest` (+5) | estado vazio, dados reais, escape de HTML, perfil Consulta não vê software/rede, escopo por grupo (404), paginação |
