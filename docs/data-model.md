@@ -29,7 +29,7 @@ Banco alvo: MySQL 8.0+ (InnoDB, utf8mb4) — ver ADR-002. Convenções Laravel (
 | `endpoint_inventories` | **Estado atual** 1:1 com o endpoint: `system`, `hardware`, `peripherals` (JSON) + `section_status` (estado da última coleta por seção, com motivo e hora) | `endpoint_id` único |
 | `software_items` | Um registro por (nome, versão, arch, origem): `first_seen_at`, `last_seen_at`, `removed_at` | único `(endpoint_id, identity_hash)` — hash porque UNIQUE com colunas NULL não protege; índices `(endpoint_id, name)` e `(endpoint_id, removed_at)` |
 | `network_interfaces` | Interfaces (substituídas a cada coleta `ok`) | índices `endpoint_id`, `mac` |
-| `inventory_snapshots` | Só metadados do envio: `snapshot_id` único (idempotência), estado das seções, `changes` (software adicionado/removido/reaparecido), hash do payload. **O payload não é guardado.** | `(endpoint_id, received_at)` |
+| `inventory_snapshots` | Só metadados do envio: `snapshot_id` único (idempotência), estado das seções, `changes` (JSON, nulo quando nada mudou: contagens e nomes de software adicionado/removido/reaparecido — nomes limitados a 50 —, `items` com o diff de sistema/hardware/periféricos/rede `{category,type,before,after}` limitado a 100, e `initial` na primeira coleta; alimenta a aba **Histórico**), hash do payload. **O payload não é guardado**: o histórico é só o diff. | `(endpoint_id, received_at)` |
 
 Não implementado: `peripheral_inventory` separado (periféricos ficam em `endpoint_inventories.peripherals`), `file_inventory_*` (política de arquivos — pendente na task 006).
 

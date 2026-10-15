@@ -53,4 +53,6 @@ Variação entre versões do Windows; ARM64 sem testes (documentar).
 
 ## Checklist (estado em 2026-10-14)
 - [x] Coletores system/hardware/software/rede/periféricos (reais, testados) - [x] Ingestão idempotente - [x] UI (abas Hardware, Software, Rede) - [x] Testes (Manager 25+ e Agent) - [x] Medição (≈ 1 s, 19 KiB, 1 máquina) - [x] Docs de contrato
-- [ ] **Política de inventário de arquivos** (diretórios autorizados, exclusões, profundidade, hash opcional, cancelamento) — não iniciada - [ ] Validar em Windows 10 e ARM64 - [ ] Histórico de mudanças de hardware (hoje só software)
+- [ ] **Política de inventário de arquivos** (diretórios autorizados, exclusões, profundidade, hash opcional, cancelamento) — não iniciada - [x] Histórico de mudanças (2026-10-15): diff de sistema/hardware/periféricos/rede e nomes de software em `inventory_snapshots.changes` (`App\Support\Inventory\InventoryDiff`) + aba **Histórico** no endpoint (software e rede só com `inventory.view_sensitive`). Plano: `docs/superpowers/plans/2026-10-15-historico-de-inventario.md`
+- [ ] Validar em Windows 10 e ARM64
+- ⚠ **Desvio da regra** "item não visto em 2 coletas → `removed_at`": o Manager marca `removed_at` já na primeira coleta **completa** (não truncada) sem o item. Uma coleta parcial por erro de leitura do Registro pode gerar remoção + reaparecimento falsos (aparecem no histórico). Ver L26.

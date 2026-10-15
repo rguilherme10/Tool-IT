@@ -7,6 +7,7 @@ use App\Models\Endpoint;
 use App\Models\EndpointInventory;
 use App\Models\InventorySnapshot;
 use App\Models\SoftwareItem;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\Support\Payloads;
@@ -98,16 +99,88 @@ class InventoryIngestTest extends TestCase
         $agent->post(self::URL, Payloads::inventory($sw([$chrome, $code])))->assertStatus(202);
         $this->assertNotNull(SoftwareItem::where('name', '7-Zip')->firstOrFail()->removed_at);
         $this->assertNull(SoftwareItem::where('name', 'VS Code')->firstOrFail()->removed_at);
+        $changes = InventorySnapshot::orderByDesc('id')->firstOrFail()->changes;
         $this->assertSame(
-            ['software_added' => 1, 'software_removed' => 1, 'software_reappeared' => 0],
-            InventorySnapshot::orderByDesc('id')->firstOrFail()->changes,
+            ['software_added' => 1, 'software_removed' => 1],
+            Arr::only($changes, ['software_added', 'software_removed', 'software_reappeared']),
         );
+        $this->assertSame(['VS Code 1.95'], $changes['software_added_names']);
+        $this->assertSame(['7-Zip 24.08'], $changes['software_removed_names']);
 
         // 7-Zip volta.
         $agent->post(self::URL, Payloads::inventory($sw([$chrome, $code, $zip])))->assertStatus(202);
         $this->assertNull(SoftwareItem::where('name', '7-Zip')->firstOrFail()->removed_at);
         $this->assertSame(1, InventorySnapshot::orderByDesc('id')->firstOrFail()->changes['software_reappeared']);
         $this->assertSame(3, SoftwareItem::count(), 'sem duplicar linhas');
+    }
+
+    public function test_first_snapshot_is_flagged_as_initial_without_hardware_diff(): void
+    {
+        $this->enrolledAgent()->post(self::URL, Payloads::inventory())->assertStatus(202);
+
+        $changes = InventorySnapshot::firstOrFail()->changes;
+        $this->assertTrue($changes['initial']);
+        $this->assertArrayNotHasKey('items', $changes);
+    }
+
+    public function test_hardware_system_and_network_changes_are_recorded_in_the_snapshot(): void
+    {
+        $agent = $this->enrolledAgent();
+        $agent->post(self::URL, Payloads::inventory())->assertStatus(202);
+
+        $base = Payloads::inventory();
+        $hardware = $base['sections']['hardware']['data'];
+        $hardware['memory_total_mb'] = 32768;
+        $hardware['volumes'][0]['free_gb'] = 1.5; // ruído: não deve aparecer
+        $system = $base['sections']['system']['data'];
+        $system['os']['version'] = '10.0.26200';
+        $network = ['interfaces' => [
+            $base['sections']['network']['data']['interfaces'][0],
+            ['name' => 'Wi-Fi', 'type' => 'Wireless', 'mac' => '11:22:33:44:55:66', 'ips' => [], 'up' => false],
+        ]];
+
+        $agent->post(self::URL, Payloads::inventory([
+            'hardware' => ['status' => 'ok', 'data' => $hardware],
+            'system' => ['status' => 'ok', 'data' => $system],
+            'network' => ['status' => 'ok', 'data' => $network],
+        ]))->assertStatus(202);
+
+        $changes = InventorySnapshot::orderByDesc('id')->firstOrFail()->changes;
+        $this->assertArrayNotHasKey('initial', $changes);
+        $this->assertEqualsCanonicalizing(['memory', 'os', 'network'], array_column($changes['items'], 'category'));
+        $memory = Arr::first($changes['items'], fn ($i) => $i['category'] === 'memory');
+        $this->assertSame(['changed', '16,0 GB', '32,0 GB'], [$memory['type'], $memory['before'], $memory['after']]);
+    }
+
+    public function test_unchanged_inventory_records_no_diff_items(): void
+    {
+        $agent = $this->enrolledAgent();
+        $agent->post(self::URL, Payloads::inventory())->assertStatus(202);
+        $agent->post(self::URL, Payloads::inventory())->assertStatus(202);
+
+        $this->assertNull(InventorySnapshot::orderByDesc('id')->firstOrFail()->changes, 'sem mudança = changes nulo');
+    }
+
+    public function test_unavailable_section_produces_no_diff(): void
+    {
+        $agent = $this->enrolledAgent();
+        $agent->post(self::URL, Payloads::inventory())->assertStatus(202);
+        $agent->post(self::URL, Payloads::inventory(['hardware' => ['status' => 'unavailable', 'reason' => 'access_denied']]))->assertStatus(202);
+
+        $this->assertNull(InventorySnapshot::orderByDesc('id')->firstOrFail()->changes);
+    }
+
+    public function test_software_name_lists_are_capped(): void
+    {
+        $agent = $this->enrolledAgent();
+        $agent->post(self::URL, Payloads::inventory(['software' => ['status' => 'ok', 'data' => ['items' => [], 'truncated' => false]]]))->assertStatus(202);
+
+        $items = array_map(fn ($i) => ['name' => "App $i", 'version' => '1', 'arch' => 'x64', 'source' => 'HKLM64'], range(1, 80));
+        $agent->post(self::URL, Payloads::inventory(['software' => ['status' => 'ok', 'data' => ['items' => $items, 'truncated' => false]]]))->assertStatus(202);
+
+        $changes = InventorySnapshot::orderByDesc('id')->firstOrFail()->changes;
+        $this->assertSame(80, $changes['software_added']);
+        $this->assertCount(50, $changes['software_added_names']);
     }
 
     public function test_truncated_software_list_never_marks_items_as_removed(): void

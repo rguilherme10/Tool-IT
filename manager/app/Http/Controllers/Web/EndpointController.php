@@ -9,9 +9,11 @@ use App\Models\Alert;
 use App\Models\Endpoint;
 use App\Models\EndpointGroup;
 use App\Models\EndpointInventory;
+use App\Models\InventorySnapshot;
 use App\Models\NetworkInterface;
 use App\Models\SoftwareItem;
 use App\Support\Authorization\AccessResolver;
+use App\Support\Inventory\InventoryDiff;
 use App\Support\Metrics\MetricSeries;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
@@ -77,6 +79,7 @@ class EndpointController extends Controller
         if ($sensitive) {
             $tabs += ['software' => 'Software', 'network' => 'Rede'];
         }
+        $tabs += ['history' => 'Histórico'];
         if ($metrics) {
             $tabs += ['metrics' => 'Métricas'];
         }
@@ -103,6 +106,7 @@ class EndpointController extends Controller
             'hardware' => ['inventory' => EndpointInventory::where('endpoint_id', $endpoint->id)->first()],
             'software' => $this->softwareData($request, $endpoint),
             'network' => ['interfaces' => NetworkInterface::where('endpoint_id', $endpoint->id)->orderBy('name')->get()],
+            'history' => $this->historyData($endpoint, $sensitive),
             'metrics' => $this->metricsData($request, $endpoint),
             'alerts' => ['endpointAlerts' => $this->endpointAlerts($endpoint)],
             default => [
@@ -158,6 +162,41 @@ class EndpointController extends Controller
             ],
             'softwareStatus' => EndpointInventory::where('endpoint_id', $endpoint->id)->value('section_status')['software'] ?? null,
         ];
+    }
+
+    /**
+     * Mudanças de inventário por coleta (mais recente primeiro). Software e rede são dados sensíveis:
+     * sem `inventory.view_sensitive` essas mudanças não saem do servidor, só o aviso de que existem.
+     *
+     * @return array<string, mixed>
+     */
+    private function historyData(Endpoint $endpoint, bool $sensitive): array
+    {
+        $snapshots = InventorySnapshot::where('endpoint_id', $endpoint->id)->whereNotNull('changes')
+            ->orderByDesc('id')->paginate(20)->withQueryString();
+
+        $entries = $snapshots->getCollection()->map(function (InventorySnapshot $snapshot) use ($sensitive) {
+            $changes = $snapshot->changes ?? [];
+            $items = $changes['items'] ?? [];
+            $visible = array_values(array_filter($items, fn ($i) => $sensitive || ! in_array($i['category'], InventoryDiff::SENSITIVE_CATEGORIES, true)));
+            $hasSoftware = isset($changes['software_added']) || isset($changes['software_removed']) || isset($changes['software_reappeared']);
+
+            return [
+                'at' => $snapshot->collected_at,
+                'initial' => (bool) ($changes['initial'] ?? false),
+                'items' => $visible,
+                'software' => $sensitive && $hasSoftware ? [
+                    'added' => $changes['software_added_names'] ?? [],
+                    'added_count' => $changes['software_added'] ?? 0,
+                    'removed' => $changes['software_removed_names'] ?? [],
+                    'removed_count' => $changes['software_removed'] ?? 0,
+                    'reappeared_count' => $changes['software_reappeared'] ?? 0,
+                ] : null,
+                'restricted' => ! $sensitive && ($hasSoftware || count($visible) < count($items)),
+            ];
+        });
+
+        return ['snapshots' => $snapshots, 'entries' => $entries];
     }
 
     /** @return array<string, mixed> */

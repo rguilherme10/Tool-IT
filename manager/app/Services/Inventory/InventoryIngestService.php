@@ -5,7 +5,9 @@ namespace App\Services\Inventory;
 use App\Models\Endpoint;
 use App\Models\EndpointInventory;
 use App\Models\InventorySnapshot;
+use App\Models\NetworkInterface;
 use App\Models\SoftwareItem;
+use App\Support\Inventory\InventoryDiff;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -15,11 +17,16 @@ use Illuminate\Validation\ValidationException;
  * Ingestão do inventário (docs/tasks/006). Regras:
  *  - idempotente por snapshot_id (reenvio do mesmo snapshot não reprocessa);
  *  - seção `ok` substitui o dado; seção `unavailable`/`error` mantém o último dado bom e só atualiza o estado da coleta;
- *  - software que sumiu de uma coleta COMPLETA recebe removed_at (e volta a ativo se reaparecer).
+ *  - software que sumiu de uma coleta COMPLETA recebe removed_at (e volta a ativo se reaparecer);
+ *  - o que mudou em relação à coleta anterior (software e diff de sistema/hardware/periféricos/rede) fica em
+ *    `inventory_snapshots.changes`, que alimenta a aba Histórico. Sem mudança = `changes` nulo.
  */
 class InventoryIngestService
 {
     private const CHUNK = 500;
+
+    /** Teto de nomes de software por lista em `changes` (a contagem sempre é exata). */
+    private const MAX_SOFTWARE_NAMES = 50;
 
     /**
      * @param  array<string, mixed>  $data  payload validado por InventoryRequest
@@ -76,6 +83,8 @@ class InventoryIngestService
 
         $status = $inventory->section_status ?? [];
         $changes = [];
+        $items = [];
+        $initial = ! $inventory->exists;
 
         foreach ($sections as $name => $section) {
             $status[$name] = ['status' => $section['status'], 'reason' => $section['reason'] ?? null, 'at' => $now->toIso8601String()];
@@ -86,9 +95,9 @@ class InventoryIngestService
 
             $payload = $section['data'] ?? [];
             match ($name) {
-                'system', 'hardware', 'peripherals' => $inventory->{$name} = $payload,
+                'system', 'hardware', 'peripherals' => $items = [...$items, ...$this->replaceJsonSection($inventory, $name, $payload)],
                 'software' => $changes += $this->syncSoftware($endpoint, $payload, $now),
-                'network' => $this->replaceNetwork($endpoint, $payload['interfaces'] ?? [], $now),
+                'network' => $items = [...$items, ...$this->replaceNetwork($endpoint, $payload['interfaces'] ?? [], $now)],
             };
 
             if ($name === 'system') {
@@ -103,7 +112,36 @@ class InventoryIngestService
         ])->save();
 
         $endpoint->forceFill(['last_inventory_at' => $now])->save();
+
+        if ($items !== []) {
+            $changes['items'] = array_slice($items, 0, InventoryDiff::MAX_ITEMS);
+        }
+        if ($initial) {
+            $changes['initial'] = true;
+        }
         $snapshot->update(['changes' => $changes === [] ? null : $changes]);
+    }
+
+    /**
+     * Grava a seção e devolve o diff contra o último dado bom (nulo = primeira coleta da seção: nada a comparar).
+     *
+     * @param  array<string, mixed>  $payload
+     * @return list<array{category: string, type: string, before: ?string, after: ?string}>
+     */
+    private function replaceJsonSection(EndpointInventory $inventory, string $name, array $payload): array
+    {
+        $previous = $inventory->{$name};
+        $inventory->{$name} = $payload;
+
+        if ($previous === null) {
+            return [];
+        }
+
+        return match ($name) {
+            'system' => InventoryDiff::system($previous, $payload),
+            'hardware' => InventoryDiff::hardware($previous, $payload),
+            'peripherals' => InventoryDiff::peripherals($previous, $payload),
+        };
     }
 
     /** @param array<string, mixed> $system */
@@ -164,20 +202,44 @@ class InventoryIngestService
 
         // Lista truncada pelo Agent = incompleta: não dá para concluir que algo foi removido.
         $removed = 0;
+        $removedNames = [];
         if (! ($payload['truncated'] ?? false)) {
             $gone = array_keys(array_filter(array_diff_key($existing, $incoming), fn ($removedAt) => $removedAt === null));
+            $removedNames = DB::table('software_items')->where('endpoint_id', $endpoint->id)
+                ->whereIn('identity_hash', array_slice($gone, 0, self::MAX_SOFTWARE_NAMES))->orderBy('name')
+                ->get(['name', 'version'])->map(fn ($r) => $this->label($r->name, $r->version))->all();
             foreach (array_chunk($gone, self::CHUNK) as $chunk) {
                 $removed += DB::table('software_items')->where('endpoint_id', $endpoint->id)->whereIn('identity_hash', $chunk)
                     ->update(['removed_at' => $stamp]);
             }
         }
 
-        return ['software_added' => count($new), 'software_removed' => $removed, 'software_reappeared' => $reappeared];
+        // Só entra o que mudou: zeros ficam de fora para `changes` ser nulo numa coleta sem novidade.
+        return array_filter([
+            'software_added' => count($new),
+            'software_removed' => $removed,
+            'software_reappeared' => $reappeared,
+            'software_added_names' => array_values(array_map(fn (array $i) => $this->label($i['name'], $i['version'] ?? null), array_slice($new, 0, self::MAX_SOFTWARE_NAMES))),
+            'software_removed_names' => $removedNames,
+        ]);
     }
 
-    /** @param list<array<string, mixed>> $interfaces */
-    private function replaceNetwork(Endpoint $endpoint, array $interfaces, CarbonImmutable $now): void
+    private function label(string $name, ?string $version): string
     {
+        return trim($name.' '.($version ?? ''));
+    }
+
+    /**
+     * Substitui as interfaces e devolve o diff contra as anteriores (sem linhas anteriores = nada a comparar).
+     *
+     * @param  list<array<string, mixed>>  $interfaces
+     * @return list<array{category: string, type: string, before: ?string, after: ?string}>
+     */
+    private function replaceNetwork(Endpoint $endpoint, array $interfaces, CarbonImmutable $now): array
+    {
+        $previous = NetworkInterface::where('endpoint_id', $endpoint->id)->get(['name', 'mac'])->map->only(['name', 'mac'])->all();
+        $diff = $previous === [] ? [] : InventoryDiff::network($previous, $interfaces);
+
         DB::table('network_interfaces')->where('endpoint_id', $endpoint->id)->delete();
 
         $stamp = $now->format('Y-m-d H:i:s');
@@ -197,5 +259,7 @@ class InventoryIngestService
         if ($rows !== []) {
             DB::table('network_interfaces')->insert($rows);
         }
+
+        return $diff;
     }
 }

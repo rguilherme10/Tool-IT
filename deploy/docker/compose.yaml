@@ -30,7 +30,7 @@ x-app-env: &app-env
 
   DB_CONNECTION: mysql
   DB_HOST: mysql
-  DB_PORT: "3306"
+  DB_PORT: ${DB_PORT:-3306}   # porta interna do contêiner mysql (não publicada); não depende do .env
   DB_DATABASE: ${DB_DATABASE:-toolit}
   DB_USERNAME: ${DB_USERNAME:-toolit}
   DB_PASSWORD: ${DB_PASSWORD:?defina DB_PASSWORD}

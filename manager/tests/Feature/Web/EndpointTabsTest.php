@@ -185,4 +185,82 @@ class EndpointTabsTest extends TestCase
 
         $this->actingAs($this->userWithRole(RoleKey::Operator))->get($this->url('metrics'))->assertSee('Nenhuma métrica recebida');
     }
+    /** Segunda coleta com mudanças de memória, SO, rede e software (a primeira é a base). */
+    private function sendInventoryWithChanges(): void
+    {
+        $this->sendInventory();
+
+        $base = Payloads::inventory()['sections'];
+        $hardware = $base['hardware']['data'];
+        $hardware['memory_total_mb'] = 32768;
+        $system = $base['system']['data'];
+        $system['os']['version'] = '10.0.26200';
+        $network = ['interfaces' => [
+            $base['network']['data']['interfaces'][0],
+            ['name' => 'Wi-Fi', 'type' => 'Wireless', 'mac' => '11:22:33:44:55:66', 'ips' => [], 'up' => false],
+        ]];
+        $software = ['items' => [
+            $base['software']['data']['items'][0],
+            ['name' => '<b>Evil</b>', 'version' => '9.9', 'publisher' => null, 'install_date' => null, 'arch' => 'x64', 'source' => 'HKLM64'],
+        ], 'truncated' => false];
+
+        $this->sendInventory([
+            'hardware' => ['status' => 'ok', 'data' => $hardware],
+            'system' => ['status' => 'ok', 'data' => $system],
+            'network' => ['status' => 'ok', 'data' => $network],
+            'software' => ['status' => 'ok', 'data' => $software],
+        ]);
+    }
+
+    public function test_history_tab_empty_state(): void
+    {
+        $this->actingAs($this->userWithRole(RoleKey::Operator))->get($this->url('history'))
+            ->assertOk()->assertSee('Nenhuma mudança registrada');
+    }
+
+    public function test_history_tab_shows_initial_collection_and_hardware_software_network_changes(): void
+    {
+        $this->sendInventoryWithChanges();
+
+        $html = $this->actingAs($this->userWithRole(RoleKey::Operator))->get($this->url('history'))->assertOk()
+            ->assertSee('Primeira coleta')
+            ->assertSee('16,0 GB')->assertSee('32,0 GB')
+            ->assertSee('10.0.26200')
+            ->assertSee('Wi-Fi')
+            ->assertSee('7-Zip 24.08')
+            ->getContent();
+
+        $this->assertStringContainsString('&lt;b&gt;Evil&lt;/b&gt; 9.9', $html, 'nome vindo do endpoint é escapado');
+        $this->assertStringNotContainsString('<b>Evil</b>', $html);
+    }
+
+    public function test_history_tab_hides_software_and_network_from_the_viewer_profile(): void
+    {
+        $this->sendInventoryWithChanges();
+
+        $this->actingAs($this->userWithRole(RoleKey::Viewer))->get($this->url('history'))->assertOk()
+            ->assertSee('32,0 GB')->assertSee('10.0.26200')
+            ->assertDontSee('Wi-Fi')->assertDontSee('7-Zip')->assertDontSee('Evil')->assertDontSee('11:22:33:44:55:66');
+    }
+
+    public function test_history_tab_is_listed_for_everyone_and_is_scoped_by_group(): void
+    {
+        $this->actingAs($this->userWithRole(RoleKey::Viewer))->get($this->url('details'))->assertSee('Histórico');
+
+        $operatorOther = $this->userWithRole(RoleKey::Operator, EndpointGroup::factory()->create());
+        $this->actingAs($operatorOther)->get($this->url('history'))->assertNotFound();
+    }
+
+    public function test_history_tab_paginates_newest_first(): void
+    {
+        for ($i = 1; $i <= 25; $i++) {
+            $this->sendInventory(['software' => ['status' => 'ok', 'data' => ['items' => [
+                ['name' => sprintf('Pacote %02d', $i), 'version' => '1', 'arch' => 'x64', 'source' => 'HKLM64'],
+            ], 'truncated' => false]]]);
+        }
+        $operator = $this->userWithRole(RoleKey::Operator);
+
+        $this->actingAs($operator)->get($this->url('history'))->assertOk()->assertSee('Pacote 25')->assertDontSee('Pacote 01');
+        $this->actingAs($operator)->get($this->url('history', ['page' => 2]))->assertOk()->assertSee('Pacote 01');
+    }
 }
