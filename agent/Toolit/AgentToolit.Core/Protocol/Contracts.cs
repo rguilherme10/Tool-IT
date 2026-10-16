@@ -80,3 +80,14 @@ public sealed record ServerMeta(string Protocol, string MinAgentVersion, DateTim
 public sealed record RotateKeyRequest(string NewPublicKey);
 
 public sealed record RotateKeyResponse(bool Rotated, DateTimeOffset PreviousKeyValidUntil);
+
+/// <summary>Tarefa entregue por GET /tasks/next (200). <c>Params</c> é sempre um objeto JSON; validado pelo catálogo local.</summary>
+public sealed record TaskAssignment(
+    string TaskId, string AttemptId, string Type, JsonElement Params, int TimeoutSeconds, DateTimeOffset LeaseExpiresAt, string Risk);
+
+/// <summary>Resultado de uma tentativa (POST /tasks/{id}/result). Nulos são omitidos do JSON.</summary>
+public sealed record TaskResultRequest(
+    string AttemptId, string Status, int? ExitCode, string? Stdout, string? Stderr, bool Truncated,
+    DateTimeOffset StartedAt, DateTimeOffset FinishedAt, long DurationMs, string? Error);
+
+public sealed record TaskProgressRequest(string AttemptId, int Percent);

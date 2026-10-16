@@ -37,23 +37,52 @@ public sealed class ManagerClient(
     public Task<RotateKeyResponse> RotateKeyAsync(RotateKeyRequest request, CancellationToken ct) =>
         PostSignedAsync<RotateKeyRequest, RotateKeyResponse>("/keys/rotate", request, ct);
 
-    private async Task<TResponse> PostSignedAsync<TRequest, TResponse>(string route, TRequest body, CancellationToken ct)
+    /// <summary>Poll curto (wait=0). <c>null</c> quando não há tarefa (204).</summary>
+    public Task<TaskAssignment?> NextTaskAsync(CancellationToken ct) =>
+        SendSignedAsync<object, TaskAssignment?>(HttpMethod.Get, $"{ApiPrefix}/tasks/next?wait=0", null, allowNoContent: true, ct);
+
+    /// <summary>Renova a lease. Attempt não vigente (409 task.conflict) sobe como <see cref="ManagerRejectedException"/>.</summary>
+    public async Task ProgressAsync(string taskId, TaskProgressRequest request, CancellationToken ct) =>
+        await SendSignedAsync<TaskProgressRequest, JsonElement>(
+            HttpMethod.Post, $"{ApiPrefix}/tasks/{Uri.EscapeDataString(taskId)}/progress", request, allowNoContent: false, ct);
+
+    /// <summary><c>false</c> quando o attempt já não é o vigente (409 task.conflict): o resultado é descartado, não reenviado.</summary>
+    public async Task<bool> SendResultAsync(string taskId, TaskResultRequest request, CancellationToken ct)
     {
         try
         {
-            return await SendAsync<TRequest, TResponse>(HttpMethod.Post, ApiPrefix + route, body, signed: true, ct);
+            await SendSignedAsync<TaskResultRequest, JsonElement>(
+                HttpMethod.Post, $"{ApiPrefix}/tasks/{Uri.EscapeDataString(taskId)}/result", request, allowNoContent: false, ct);
+
+            return true;
+        }
+        catch (ManagerRejectedException ex) when (ex is { Status: 409, Code: "task.conflict" })
+        {
+            return false;
+        }
+    }
+
+    private Task<TResponse> PostSignedAsync<TRequest, TResponse>(string route, TRequest body, CancellationToken ct) =>
+        SendSignedAsync<TRequest, TResponse>(HttpMethod.Post, ApiPrefix + route, body, allowNoContent: false, ct);
+
+    private async Task<TResponse> SendSignedAsync<TRequest, TResponse>(
+        HttpMethod method, string pathAndQuery, TRequest? body, bool allowNoContent, CancellationToken ct)
+    {
+        try
+        {
+            return await SendAsync<TRequest, TResponse>(method, pathAndQuery, body, signed: true, ct, allowNoContent);
         }
         catch (ManagerAuthException ex) when (ex.ServerTime is { } serverTime)
         {
             // Relógio desajustado: aprende o deslocamento e tenta uma única vez com timestamp corrigido.
             Interlocked.Exchange(ref _clockOffsetSeconds, serverTime.ToUnixTimeSeconds() - time.GetUtcNow().ToUnixTimeSeconds());
 
-            return await SendAsync<TRequest, TResponse>(HttpMethod.Post, ApiPrefix + route, body, signed: true, ct);
+            return await SendAsync<TRequest, TResponse>(method, pathAndQuery, body, signed: true, ct, allowNoContent);
         }
     }
 
     private async Task<TResponse> SendAsync<TRequest, TResponse>(
-        HttpMethod method, string path, TRequest? body, bool signed, CancellationToken ct)
+        HttpMethod method, string path, TRequest? body, bool signed, CancellationToken ct, bool allowNoContent = false)
     {
         if (signed && runtime.IsRevoked)
         {
@@ -94,8 +123,18 @@ public sealed class ManagerClient(
         {
             var payload = await response.Content.ReadAsByteArrayAsync(ct);
 
+            if (allowNoContent && response.StatusCode == HttpStatusCode.NoContent)
+            {
+                return default!;   // 204: sem corpo e sem erro (ex.: nenhuma tarefa disponível)
+            }
+
             if (response.IsSuccessStatusCode)
             {
+                if (payload.Length == 0)
+                {
+                    throw new ManagerRejectedException((int)response.StatusCode, "response.empty", "Resposta vazia do Manager.");
+                }
+
                 return Json.Deserialize<TResponse>(payload)
                     ?? throw new ManagerRejectedException((int)response.StatusCode, "response.empty", "Resposta vazia do Manager.");
             }
@@ -104,12 +143,17 @@ public sealed class ManagerClient(
         }
     }
 
-    private void Sign(HttpRequestMessage request, HttpMethod method, string path, byte[] body)
+    private void Sign(HttpRequestMessage request, HttpMethod method, string pathAndQuery, byte[] body)
     {
+        // A string canônica separa o path da query (crua, ordenada pelo RequestSigner); a query nunca entra no path.
+        var split = pathAndQuery.IndexOf('?');
+        var path = split < 0 ? pathAndQuery : pathAndQuery[..split];
+        var query = split < 0 ? "" : pathAndQuery[(split + 1)..];
+
         var agentId = runtime.State?.AgentId ?? throw new InvalidOperationException("Agent não registrado.");
         var timestamp = (time.GetUtcNow().ToUnixTimeSeconds() + Interlocked.Read(ref _clockOffsetSeconds)).ToString();
         var nonce = RequestSigner.NewNonce();
-        var canonical = RequestSigner.Canonical(method.Method, path, query: "", timestamp, nonce, body);
+        var canonical = RequestSigner.Canonical(method.Method, path, query, timestamp, nonce, body);
 
         request.Headers.Add("X-Agent-Id", agentId);
         request.Headers.Add("X-Timestamp", timestamp);

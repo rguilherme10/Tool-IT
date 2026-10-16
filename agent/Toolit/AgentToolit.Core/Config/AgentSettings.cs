@@ -16,10 +16,21 @@ public sealed class AgentSettings
     public long QueueMaxBytes { get; set; } = 20L * 1024 * 1024;
     public int LogRetentionDays { get; set; } = 14;
 
+    private int _taskPollSeconds = 10;
+
+    /// <summary>Intervalo do poll curto de tarefas (GET /tasks/next?wait=0). Sempre dentro de [Min, Max].</summary>
+    public int TaskPollSeconds
+    {
+        get => _taskPollSeconds;
+        set => _taskPollSeconds = Math.Clamp(value, MinTaskPollSeconds, MaxTaskPollSeconds);
+    }
+
     /// <summary>Limites mínimos: o Manager não consegue levar o Agent a consultas abusivas.</summary>
     public const int MinHeartbeatSeconds = 15;
     public const int MinMetricsSeconds = 15;
     public const int MinInventoryHours = 1;
+    public const int MinTaskPollSeconds = 5;
+    public const int MaxTaskPollSeconds = 300;
 
     public void ApplyServerConfig(ServerConfig server)
     {
