@@ -69,6 +69,7 @@ public static class PathGuard
         ["handle_closed"] = "Arquivo não está aberto.",
         ["final_path_unavailable"] = "Não foi possível obter o caminho real do arquivo.",
         ["reparse_race"] = "O caminho mudou durante a abertura (link criado no meio): operação desfeita.",
+        ["reparse_race_cleanup_failed"] = "O caminho mudou durante a abertura e o arquivo criado fora da pasta permitida não pôde ser removido.",
         ["hard_link"] = "Arquivos com mais de um hard link não são permitidos.",
         ["exists"] = "O arquivo já existe.",
         ["not_found"] = "O arquivo ou a pasta não existe.",
@@ -373,7 +374,7 @@ public static class PathGuard
     /// Passos: <see cref="ValidateOnDisk"/> → abre → <see cref="ValidateOpenHandle"/> e recusa arquivo com mais de um
     /// hard link (Append/Read). Se o handle não confere e o arquivo foi criado POR ESTA chamada, ele é apagado PELO
     /// HANDLE (FileDispositionInfo) — nunca por caminho. Devolve null e <paramref name="error"/> (código; texto em
-    /// <see cref="Message"/>): códigos de sintaxe/disco, "exists", "not_found", "open_failed", "reparse_race",
+    /// <see cref="Message"/>): códigos de sintaxe/disco, "exists", "not_found", "open_failed", "reparse_race", "reparse_race_cleanup_failed",
     /// "hard_link", "normalization_unavailable".
     /// </summary>
     public static FileStream? OpenChecked(string fullPath, FileOpenIntent intent, IReadOnlyList<string> roots, out string? error)
@@ -395,7 +396,7 @@ public static class PathGuard
             _ => throw new ArgumentOutOfRangeException(nameof(intent)),
         };
 
-        var handle = CreateFileW(fullPath, access, share, IntPtr.Zero, disposition, FileAttributeNormal, IntPtr.Zero);
+        var handle = CreateFileW(fullPath, access, share, IntPtr.Zero, disposition, OpenFlags, IntPtr.Zero);
         if (handle.IsInvalid)
         {
             var win32 = Marshal.GetLastWin32Error();
@@ -427,7 +428,12 @@ public static class PathGuard
                 // Criamos o arquivo agora e ele está fora da raiz: apaga pelo próprio handle (não por caminho, que
                 // pode já apontar para outro lugar).
                 var info = new FileDispositionInfo { DeleteFile = true };
-                SetFileInformationByHandle(handle, FileDispositionInfoClass, ref info, (uint)Marshal.SizeOf<FileDispositionInfo>());
+                if (!SetFileInformationByHandle(handle, FileDispositionInfoClass, ref info, (uint)Marshal.SizeOf<FileDispositionInfo>()))
+                {
+                    // Não conseguimos desfazer: um arquivo vazio pode ter ficado fora da raiz. Código próprio para o
+                    // chamador registrar (nunca tentamos apagar por caminho).
+                    problem = "reparse_race_cleanup_failed";
+                }
             }
             handle.Dispose();
             error = problem;
@@ -564,6 +570,16 @@ public static class PathGuard
     private const uint CreateNewDisposition = 1;
     private const uint OpenExistingDisposition = 3;
     private const uint FileAttributeNormal = 0x80;
+    internal const uint SecuritySqosPresent = 0x00100000;
+    internal const uint SecurityAnonymous = 0x0;
+    internal const uint SecurityDelegation = 0x00030000;   // máscara de nível (SECURITY_DELEGATION = 3 << 16)
+
+    /// <summary>
+    /// Flags de TODA abertura crua (CreateFileW) do PathGuard. SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS, como o
+    /// próprio .NET faz no Windows: se uma corrida trocar o caminho por um pipe nomeado (junction para \RPC Control +
+    /// symlink do object manager), o servidor do pipe NÃO consegue se passar pelo serviço LocalSystem.
+    /// </summary>
+    internal const uint OpenFlags = FileAttributeNormal | SecuritySqosPresent | SecurityAnonymous;
     private const int FileDispositionInfoClass = 4;
     private const int ErrorFileNotFound = 2;
     private const int ErrorPathNotFound = 3;

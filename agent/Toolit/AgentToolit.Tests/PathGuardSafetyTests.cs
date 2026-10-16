@@ -73,6 +73,38 @@ public class PathGuardSafetyTests
         Assert.Null(PathGuard.ValidateOnDisk(file, [root]));
     }
 
+    // ---------------------------------------------------------------- OpenChecked: flags da abertura
+
+    [Fact]
+    public void Raw_open_uses_anonymous_security_quality_of_service()
+    {
+        // Pipe nomeado plantado numa corrida não pode se passar pelo serviço (SECURITY_SQOS_PRESENT | SECURITY_ANONYMOUS).
+        Assert.Equal(PathGuard.SecuritySqosPresent, PathGuard.OpenFlags & PathGuard.SecuritySqosPresent);
+        Assert.Equal(0x00100000u, PathGuard.SecuritySqosPresent);
+        Assert.Equal(0u, PathGuard.OpenFlags & PathGuard.SecurityDelegation);   // nível = ANONYMOUS (0), nunca identificação/impersonação/delegação
+        Assert.Equal(0u, PathGuard.OpenFlags & 0x000C0000u);                    // nem CONTEXT_TRACKING nem EFFECTIVE_ONLY
+
+        // E com essas flags a abertura normal continua funcionando nas três intenções.
+        using var dir = new TempDir();
+        var (root, _) = PathGuardTests.Layout(dir);
+        var file = Path.Combine(root, "sqos.txt");
+        using (var s = PathGuard.OpenChecked(file, FileOpenIntent.CreateNew, [root], out var e1))
+        {
+            Assert.Null(e1);
+            s!.Write("x"u8);
+        }
+        using (var s = PathGuard.OpenChecked(file, FileOpenIntent.AppendExisting, [root], out var e2))
+        {
+            Assert.Null(e2);
+            Assert.NotNull(s);
+        }
+        using (var s = PathGuard.OpenChecked(file, FileOpenIntent.ReadExisting, [root], out var e3))
+        {
+            Assert.Null(e3);
+            Assert.Equal('x', s!.ReadByte());
+        }
+    }
+
     // ---------------------------------------------------------------- OpenChecked: caminho normal
 
     [Fact]
