@@ -1,4 +1,5 @@
 using AgentToolit.Core.Config;
+using AgentToolit.Core.Execution;
 using AgentToolit.Core.Host;
 using AgentToolit.Core.Net;
 using AgentToolit.Core.Protocol;
@@ -13,7 +14,7 @@ namespace AgentToolit.Core.Services;
 /// </summary>
 public sealed class HeartbeatService(
     ManagerClient client, AgentRuntime runtime, AgentSettings settings, IHostFacts host, OutboundQueue queue,
-    ILogger<HeartbeatService> logger, Backoff? backoff = null)
+    ILogger<HeartbeatService> logger, Backoff? backoff = null, TaskCoordinator? tasks = null)
 {
     private readonly Backoff _backoff = backoff ?? new Backoff();
     private bool _revokedLogged;
@@ -52,6 +53,17 @@ public sealed class HeartbeatService(
             var response = await client.HeartbeatAsync(request, ct);
             _backoff.Reset();
             logger.LogDebug("Heartbeat ok (config v{Version}, tarefas={Tasks})", response.ConfigVersion, response.TasksAvailable);
+
+            // Sinais para o poller de tarefas: cancela as canceladas no Manager e acorda o poll se há tarefa.
+            if (response.CancelTaskIds is { Count: > 0 } cancelIds)
+            {
+                tasks?.Cancel(cancelIds);
+            }
+
+            if (response.TasksAvailable)
+            {
+                tasks?.Notify();
+            }
 
             return TimeSpan.FromSeconds(settings.HeartbeatSeconds);
         }

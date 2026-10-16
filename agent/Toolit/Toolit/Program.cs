@@ -4,6 +4,9 @@ using AgentToolit.Collectors.Inventory;
 using AgentToolit.Collectors.Metrics;
 using AgentToolit.Collectors.Wmi;
 using AgentToolit.Core.Config;
+using AgentToolit.Core.Execution;
+using AgentToolit.Core.Execution.Handlers;
+using AgentToolit.Core.Execution.Windows;
 using AgentToolit.Core.Host;
 using AgentToolit.Core.Identity;
 using AgentToolit.Core.Logging;
@@ -87,13 +90,43 @@ builder.Services.AddSingleton<ISectionCollector, PeripheralCollector>();
 builder.Services.AddSingleton<InventoryCollector>();
 builder.Services.AddSingleton<MetricsCollector>();
 builder.Services.AddSingleton<CollectionService>();
-builder.Services.AddSingleton<HeartbeatService>();
+
+// Tarefas remotas: só os tipos do catálogo local, sobre APIs .NET (nunca cmd/PowerShell).
+builder.Services.AddSingleton<IProcessApi, WindowsProcessApi>();
+builder.Services.AddSingleton<IServiceApi, WindowsServiceApi>();
+builder.Services.AddSingleton<IProtectedProcessSource, SecurityCenterAntivirusSource>();
+builder.Services.AddSingleton(sp => new ProtectedProcessList(sp.GetRequiredService<IProtectedProcessSource>()));
+builder.Services.AddSingleton<IInventoryRefresher, CollectionInventoryRefresher>();
+builder.Services.AddSingleton<IAgentRestarter>(sp =>
+    new AgentRestarter(sp.GetRequiredService<IHostApplicationLifetime>(), sp.GetRequiredService<ILogger<AgentRestarter>>()));
+builder.Services.AddSingleton<ITaskHandler, SystemInfoHandler>();
+builder.Services.AddSingleton<ITaskHandler, ProcessListHandler>();
+builder.Services.AddSingleton<ITaskHandler, ServiceListHandler>();
+builder.Services.AddSingleton<ITaskHandler, ProcessKillHandler>();
+builder.Services.AddSingleton<ITaskHandler, InventoryRefreshHandler>();
+builder.Services.AddSingleton<ITaskHandler, AgentRestartHandler>();
+foreach (var type in new[] { "service.start", "service.stop", "service.restart" })
+{
+    builder.Services.AddSingleton<ITaskHandler>(sp => new ServiceControlHandler(type, sp.GetRequiredService<IServiceApi>()));
+}
+
+builder.Services.AddSingleton(sp => new TaskCoordinator(sp.GetRequiredService<TimeProvider>()));
+builder.Services.AddSingleton<TaskRunner>();
+builder.Services.AddSingleton(sp => new TaskPoller(
+    sp.GetRequiredService<ManagerClient>(), sp.GetRequiredService<TaskRunner>(), sp.GetRequiredService<AgentRuntime>(),
+    sp.GetRequiredService<AgentSettings>(), sp.GetRequiredService<ILogger<TaskPoller>>(), sp.GetRequiredService<IAgentRestarter>()));
+
+builder.Services.AddSingleton(sp => new HeartbeatService(
+    sp.GetRequiredService<ManagerClient>(), sp.GetRequiredService<AgentRuntime>(), sp.GetRequiredService<AgentSettings>(),
+    sp.GetRequiredService<IHostFacts>(), sp.GetRequiredService<OutboundQueue>(), sp.GetRequiredService<ILogger<HeartbeatService>>(),
+    tasks: sp.GetRequiredService<TaskCoordinator>()));
 builder.Services.AddSingleton<SenderService>();
 
 builder.Services.AddHostedService<HeartbeatWorker>();
 builder.Services.AddHostedService<MetricsWorker>();
 builder.Services.AddHostedService<InventoryWorker>();
 builder.Services.AddHostedService<SenderWorker>();
+builder.Services.AddHostedService<TaskWorker>();
 
 var host = builder.Build();
 host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("AgentToolit")
