@@ -10,6 +10,7 @@ use App\Models\RemoteTask;
 use App\Models\User;
 use App\Services\Tasks\TaskService;
 use App\Services\Users\UserService;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Tests\TestCase;
 
@@ -118,6 +119,21 @@ class TasksUiTest extends TestCase
         $this->actingAs($operator)->post($this->storeUrl($this->endpointB), $data)->assertSessionHasErrors('idempotency_key');
         $this->actingAs($operator)->post($this->storeUrl($this->endpointA), ['type' => 'service.list'] + $data)->assertSessionHasErrors('idempotency_key');
         $this->assertSame(1, RemoteTask::count());
+    }
+
+    public function test_store_resubmitting_same_key_with_different_params_shows_error_and_creates_nothing(): void
+    {
+        // Voltar no navegador mantém o idempotency_key oculto do formulário em cache; só o nome muda.
+        $operator = $this->userWithRole(RoleKey::Operator);
+        $data = $this->payload('service.stop', ['name' => 'Spooler']);
+        $this->actingAs($operator)->post($this->storeUrl($this->endpointA), $data)->assertRedirect($this->tab($this->endpointA));
+
+        $this->actingAs($operator)->post($this->storeUrl($this->endpointA), ['name' => 'W32Time'] + $data)
+            ->assertSessionHasErrors('idempotency_key')->assertSessionMissing('status');
+
+        $this->assertSame(1, RemoteTask::count());
+        $this->assertSame(['name' => 'Spooler'], RemoteTask::firstOrFail()->params);
+        $this->assertSame(1, DB::table('audit_logs')->where('action', 'task.created')->count());
     }
 
     public function test_store_requires_valid_type_and_key(): void

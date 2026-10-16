@@ -122,6 +122,48 @@ class TaskServiceTest extends TestCase
         $this->assertSame(2, RemoteTask::count());
     }
 
+    public function test_idempotency_key_reused_for_different_request_is_refused(): void
+    {
+        $first = $this->tasks->create($this->admin, $this->endpoint, 'service.stop', ['name' => 'Spooler'], 'chave-2');
+
+        foreach ([
+            [$this->endpoint, 'service.stop', ['name' => 'W32Time']],     // parâmetros diferentes
+            [$this->endpoint, 'service.start', ['name' => 'Spooler']],    // tipo diferente
+            [$this->activeEndpoint(), 'service.stop', ['name' => 'Spooler']], // endpoint diferente
+        ] as [$endpoint, $type, $params]) {
+            try {
+                $this->tasks->create($this->admin, $endpoint, $type, $params, 'chave-2');
+                $this->fail("chave reutilizada ({$type}) deveria ser recusada");
+            } catch (ValidationException $e) {
+                $this->assertArrayHasKey('idempotency_key', $e->errors());
+            }
+        }
+
+        $this->assertSame(1, RemoteTask::count());
+        $this->assertSame(1, DB::table('audit_logs')->where('action', 'task.created')->count());
+        $this->assertSame($first->id, $this->tasks->create($this->admin, $this->endpoint, 'service.stop', ['name' => 'Spooler'], 'chave-2')->id);
+    }
+
+    public function test_cancel_requested_after_sweep_query_cancels_instead_of_requeue(): void
+    {
+        ['task' => $task] = $this->running();
+        $this->travel(61)->seconds();
+
+        // Simula o pedido de cancelamento chegando entre a consulta da varredura e a transação por linha:
+        // na primeira leitura da tarefa (eager load da varredura) o banco já muda, mas a instância carregada fica velha.
+        $fired = false;
+        RemoteTask::retrieved(function (RemoteTask $model) use (&$fired, $task) {
+            if (! $fired && $model->id === $task->id) {
+                $fired = true;
+                DB::table('remote_tasks')->where('id', $task->id)->update(['cancel_requested_at' => now()]);
+            }
+        });
+
+        $this->assertSame(1, $this->tasks->expireDue());
+        $this->assertTrue($fired);
+        $this->assertSame(TaskState::Cancelled, $task->fresh()->state);
+    }
+
     public function test_claim_takes_oldest_and_second_claim_gets_nothing(): void
     {
         $this->travel(-2)->minutes();

@@ -66,7 +66,7 @@ class TaskService
                 throw ValidationException::withMessages(['idempotency_key' => 'Chave de idempotência inválida.']);
             }
             if ($existing = $this->findByIdempotencyKey($by, $idempotencyKey)) {
-                return $existing;
+                return $this->sameRequestOrFail($existing, $endpoint, $type, $params);
             }
         }
 
@@ -98,8 +98,33 @@ class TaskService
             });
         } catch (UniqueConstraintViolationException $e) {
             // Corrida com a mesma chave: a outra requisição criou primeiro.
-            return $this->findByIdempotencyKey($by, (string) $idempotencyKey) ?? throw $e;
+            $existing = $this->findByIdempotencyKey($by, (string) $idempotencyKey) ?? throw $e;
+
+            return $this->sameRequestOrFail($existing, $endpoint, $type, $params);
         }
+    }
+
+    /**
+     * Repetição com a mesma chave só devolve a tarefa existente se for o MESMO pedido (endpoint, tipo e
+     * parâmetros normalizados); senão o usuário seria informado de uma tarefa que não pediu.
+     *
+     * @param  array<string, mixed>  $params  saída de TaskCatalog::validate()
+     *
+     * @throws ValidationException
+     */
+    private function sameRequestOrFail(RemoteTask $existing, Endpoint $endpoint, string $type, array $params): RemoteTask
+    {
+        $stored = (array) $existing->params;
+        ksort($stored);
+        ksort($params);
+
+        if ((int) $existing->endpoint_id !== (int) $endpoint->id || $existing->type !== $type || $stored !== $params) {
+            throw ValidationException::withMessages([
+                'idempotency_key' => 'Esta chave de idempotência já foi usada para um pedido diferente. Recarregue a página e tente de novo.',
+            ]);
+        }
+
+        return $existing;
     }
 
     /**
@@ -456,7 +481,8 @@ class TaskService
             throw TaskConflictException::staleAttempt();
         }
 
-        $task = $attempt->task;
+        // Relê dentro da transação: um cancelamento pedido depois da consulta da varredura deve cancelar, não recolocar na fila.
+        $task = $attempt->task->refresh();
         $definition = TaskCatalog::definition($task->type);
         $meta = ['attempt' => $attempt->uuid, 'number' => $attempt->number, 'error' => 'lease_expired'];
 
