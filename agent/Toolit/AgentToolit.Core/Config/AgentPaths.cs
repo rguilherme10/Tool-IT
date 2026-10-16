@@ -42,6 +42,17 @@ public sealed class AgentPaths(string root)
             return false;
         }
 
+        new DirectoryInfo(Root).SetAccessControl(RestrictedSecurity());
+
+        return true;
+    }
+
+    /// <summary>
+    /// ACL "só SYSTEM e Administradores, controle total", sem herança do pai (protegida) e herdada pelos filhos.
+    /// Usada no diretório de dados e nas raízes de transferência (impede usuário comum de plantar junction/hard link).
+    /// </summary>
+    public static DirectorySecurity RestrictedSecurity()
+    {
         var security = new DirectorySecurity();
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
         foreach (var sid in new[] { WellKnownSidType.LocalSystemSid, WellKnownSidType.BuiltinAdministratorsSid })
@@ -54,9 +65,7 @@ public sealed class AgentPaths(string root)
                 AccessControlType.Allow));
         }
 
-        new DirectoryInfo(Root).SetAccessControl(security);
-
-        return true;
+        return security;
     }
 
     /// <summary>Falha cedo (antes de consumir o token de enrollment) se o diretório de dados não é gravável.</summary>

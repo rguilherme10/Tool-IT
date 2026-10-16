@@ -18,11 +18,21 @@ public static partial class TaskSchemaValidator
     [GeneratedRegex(@"^[0-9]{1,10}\z", RegexOptions.CultureInvariant)]
     private static partial Regex PidPattern();
 
+    // UUID canônico em minúsculas (o mesmo UUID_PATTERN do Manager): sem chaves, sem maiúsculas, sem espaços.
+    [GeneratedRegex(@"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z", RegexOptions.CultureInvariant)]
+    private static partial Regex UuidPattern();
+
     private static readonly string[] NoKeys = [];
     private static readonly string[] ServiceKeys = ["name"];
     private static readonly string[] KillKeys = ["pid", "name"];
+    private static readonly string[] FileKeys = ["transfer_id"];
 
     private static bool IsServiceType(string type) => type is "service.start" or "service.stop" or "service.restart";
+
+    private static bool IsFileType(string type) => type is "file.send" or "file.fetch";
+
+    /// <summary>UUID canônico minúsculo (formato de <c>transfer_id</c>).</summary>
+    public static bool IsCanonicalUuid(string? value) => value is not null && UuidPattern().IsMatch(value);
 
     public static (bool Ok, string? Error) Validate(string type, JsonElement p)
     {
@@ -36,7 +46,7 @@ public static partial class TaskSchemaValidator
             return (false, "params must be an object");
         }
 
-        var allowed = IsServiceType(type) ? ServiceKeys : type == "process.kill" ? KillKeys : NoKeys;
+        var allowed = IsServiceType(type) ? ServiceKeys : type == "process.kill" ? KillKeys : IsFileType(type) ? FileKeys : NoKeys;
         var seen = new HashSet<string>(StringComparer.Ordinal);
         foreach (var property in p.EnumerateObject())
         {
@@ -59,6 +69,17 @@ public static partial class TaskSchemaValidator
             }
 
             return ServiceNamePattern().IsMatch(name.GetString()!) ? (true, null) : (false, "invalid service name");
+        }
+
+        if (IsFileType(type))
+        {
+            // Só o identificador: caminho e metadados vêm de GET /transfers/{id}, nunca dos parâmetros.
+            if (!p.TryGetProperty("transfer_id", out var id) || id.ValueKind != JsonValueKind.String)
+            {
+                return (false, "transfer_id is required (string)");
+            }
+
+            return IsCanonicalUuid(id.GetString()) ? (true, null) : (false, "invalid transfer_id");
         }
 
         if (type == "process.kill")

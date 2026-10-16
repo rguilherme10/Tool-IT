@@ -18,6 +18,8 @@ public static class LocalTaskCatalog
         ["service.restart"] = 60,
         ["process.kill"] = 15,
         ["agent.restart"] = 30,
+        ["file.send"] = 900,
+        ["file.fetch"] = 900,
     };
 
     /// <summary>Mesmos padrões de <c>toolit.tasks.service_protected</c> no Manager: nunca parar nem reiniciar.</summary>

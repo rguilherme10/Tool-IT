@@ -13,6 +13,7 @@ using AgentToolit.Core.Logging;
 using AgentToolit.Core.Net;
 using AgentToolit.Core.Queue;
 using AgentToolit.Core.Services;
+using AgentToolit.Core.Transfers;
 
 // Comandos administrativos (instalador/operador). Sem argumentos: executa como serviço do Windows.
 Console.OutputEncoding = new System.Text.UTF8Encoding(false);
@@ -105,6 +106,12 @@ builder.Services.AddSingleton<ITaskHandler, ServiceListHandler>();
 builder.Services.AddSingleton<ITaskHandler, ProcessKillHandler>();
 builder.Services.AddSingleton<ITaskHandler, InventoryRefreshHandler>();
 builder.Services.AddSingleton<ITaskHandler, AgentRestartHandler>();
+// Transferência de arquivos: metadados e chunks pelas rotas assinadas; caminhos só pelo PathGuard.
+builder.Services.AddSingleton<ITransferApi>(sp => sp.GetRequiredService<ManagerClient>());
+builder.Services.AddSingleton<IDiskSpace, SystemDiskSpace>();
+builder.Services.AddSingleton<ITaskHandler, FileSendHandler>();
+builder.Services.AddSingleton<ITaskHandler, FileFetchHandler>();
+builder.Services.AddSingleton<ITaskProgressSink, ManagerProgressSink>();
 foreach (var type in new[] { "service.start", "service.stop", "service.restart" })
 {
     builder.Services.AddSingleton<ITaskHandler>(sp => new ServiceControlHandler(type, sp.GetRequiredService<IServiceApi>()));
@@ -131,10 +138,21 @@ builder.Services.AddHostedService<TaskWorker>();
 var host = builder.Build();
 host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("AgentToolit")
     .LogInformation("Toolit Agent {Version} iniciado (registrado={Enrolled}).", Commands.Version, host.Services.GetRequiredService<AgentRuntime>().IsEnrolled);
-if (!AgentToolit.Core.Transfers.PathGuard.NormalizationAvailable)
+if (!PathGuard.NormalizationAvailable)
 {
     host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("AgentToolit")
         .LogWarning("Normalização Unicode indisponível neste sistema: transferências de arquivo serão recusadas.");
+}
+
+// Raízes de transferência: cria as que faltam com ACL só SYSTEM/Administradores (quando elevado). Nunca derruba o serviço.
+try
+{
+    TransferRootSetup.Prepare(settings, host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("AgentToolit.Transfers"));
+}
+catch (Exception ex)
+{
+    host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("AgentToolit.Transfers")
+        .LogError(ex, "Falha ao preparar as pastas de transferência.");
 }
 
 await host.RunAsync();

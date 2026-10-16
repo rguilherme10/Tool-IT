@@ -1,4 +1,5 @@
 using System.Text;
+using AgentToolit.Core.Net;
 using AgentToolit.Core.Protocol;
 using Microsoft.Extensions.Logging;
 
@@ -10,8 +11,13 @@ public sealed record TaskRun(TaskResultRequest Result, bool RestartAgent);
 /// <summary>
 /// Executa uma tarefa por vez: valida tipo/parâmetros contra o catálogo local (fora dele → rejected sem executar),
 /// aplica o timeout do tipo, aceita cancelamento via <see cref="TaskCoordinator"/> e limita a saída a 16 KiB.
+/// Handler <see cref="IContextTaskHandler"/> recebe um <see cref="TaskContext"/> cujo progresso vai para
+/// <paramref name="progress"/> (sem sink: progresso descartado). Falha no envio do progresso nunca derruba a tarefa;
+/// 409 (tentativa/lease já não vale) cancela o handler e a tarefa termina como cancelled.
 /// </summary>
-public sealed class TaskRunner(IEnumerable<ITaskHandler> handlers, TaskCoordinator coordinator, TimeProvider time, ILogger<TaskRunner> logger)
+public sealed class TaskRunner(
+    IEnumerable<ITaskHandler> handlers, TaskCoordinator coordinator, TimeProvider time, ILogger<TaskRunner> logger,
+    ITaskProgressSink? progress = null)
 {
     public const int MaxOutputBytes = 16384;
     private const int MaxErrorChars = 1024;
@@ -76,14 +82,17 @@ public sealed class TaskRunner(IEnumerable<ITaskHandler> handlers, TaskCoordinat
         }
 
         using var cancel = new CancellationTokenSource();
+        using var lost = new CancellationTokenSource();
         using var timeout = new CancellationTokenSource(LocalTaskCatalog.EffectiveTimeout(type, a.TimeoutSeconds), time);
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, cancel.Token, timeout.Token);
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, cancel.Token, timeout.Token, lost.Token);
         using var registration = coordinator.Register(a.TaskId, cancel);
 
         try
         {
             // Task.Run + WaitAsync: um handler preso em API síncrona não segura o runner além do timeout.
-            var work = Task.Run(() => handler.ExecuteAsync(a.Params, linked.Token), CancellationToken.None);
+            var work = handler is IContextTaskHandler contextual
+                ? Task.Run(() => contextual.ExecuteAsync(a.Params, new TaskContext(a.TaskId, a.AttemptId, Reporter(a, lost)), linked.Token), CancellationToken.None)
+                : Task.Run(() => handler.ExecuteAsync(a.Params, linked.Token), CancellationToken.None);
             var outcome = await work.WaitAsync(linked.Token);
 
             return outcome ?? TaskOutcome.Failed("handler returned no outcome");
@@ -96,6 +105,10 @@ public sealed class TaskRunner(IEnumerable<ITaskHandler> handlers, TaskCoordinat
         {
             return TaskOutcome.Cancelled("cancelled by manager");
         }
+        catch (OperationCanceledException) when (lost.IsCancellationRequested)
+        {
+            return TaskOutcome.Cancelled("task no longer running on manager");
+        }
         catch (OperationCanceledException) when (timeout.IsCancellationRequested)
         {
             return TaskOutcome.Failed("timeout");
@@ -107,6 +120,43 @@ public sealed class TaskRunner(IEnumerable<ITaskHandler> handlers, TaskCoordinat
             return TaskOutcome.Failed(ex.GetType().Name + ": " + ex.Message);
         }
     }
+
+    /// <summary>
+    /// Envio de progresso da tentativa: percentual limitado a 0–99; erros engolidos (registrados); 409 (tentativa
+    /// encerrada/lease perdida no Manager) cancela <paramref name="lost"/> para o handler parar de gravar.
+    /// </summary>
+    private Func<int, CancellationToken, Task> Reporter(TaskAssignment a, CancellationTokenSource lost) => async (percent, token) =>
+    {
+        if (progress is null || lost.IsCancellationRequested)
+        {
+            return;
+        }
+
+        try
+        {
+            await progress.ReportAsync(a.TaskId, a.AttemptId, Math.Clamp(percent, 0, 99), token);
+        }
+        catch (ManagerRejectedException ex) when (ex.Status == 409)
+        {
+            logger.LogWarning("Tarefa {TaskId} ({Type}): o Manager não reconhece mais esta tentativa ({Code}); interrompendo.", a.TaskId, a.Type, ex.Code);
+            try
+            {
+                lost.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // a tarefa já terminou
+            }
+        }
+        catch (OperationCanceledException) when (token.IsCancellationRequested)
+        {
+            // o handler já está sendo cancelado
+        }
+        catch (Exception ex)
+        {
+            logger.LogDebug(ex, "Tarefa {TaskId} ({Type}): falha ao enviar progresso (ignorada).", a.TaskId, a.Type);
+        }
+    };
 
     /// <summary>Corta em no máximo <paramref name="maxBytes"/> bytes UTF-8 sem partir um caractere.</summary>
     public static (string? Text, bool Truncated) TruncateUtf8(string? text, int maxBytes)

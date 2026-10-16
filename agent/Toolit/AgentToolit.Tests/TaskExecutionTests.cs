@@ -120,7 +120,7 @@ public class TaskExecutionTests
     public void Local_catalog_has_exactly_the_manager_types_and_timeouts()
     {
         Assert.Equal(
-            ["agent.restart", "inventory.refresh", "process.kill", "process.list", "service.list", "service.restart", "service.start", "service.stop", "system.info"],
+            ["agent.restart", "file.fetch", "file.send", "inventory.refresh", "process.kill", "process.list", "service.list", "service.restart", "service.start", "service.stop", "system.info"],
             LocalTaskCatalog.Types.Order());
         Assert.Equal(TimeSpan.FromSeconds(15), LocalTaskCatalog.Timeout("process.kill"));
         Assert.Equal(TimeSpan.FromSeconds(120), LocalTaskCatalog.Timeout("inventory.refresh"));
