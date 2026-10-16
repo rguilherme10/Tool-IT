@@ -153,6 +153,21 @@ Resposta `200 { "task_id":"…","state":"completed" }`. Semântica:
 ### Cancelamento e revogação
 Tarefa `available`/`pending_approval` cancelada no painel vai direto a `cancelled`. Em `running`, o painel só grava `cancel_requested_at`; o heartbeat devolve o id em `cancel_task_ids` e o Agent cancela o `CancellationToken` do handler. Revogação (inclusive a feita por novo enrollment) e desativação do endpoint cancelam todas as tarefas abertas; reativar não as restaura. Tarefa não pega em 30 min (`toolit.tasks.pending_ttl_minutes`) expira por `tasks:expire` (agendado a cada minuto), que também fecha leases vencidas.
 
+### Transferências de arquivos (`file.send` / `file.fetch`, task 009)
+A tarefa traz só `params.transfer_id`; caminho e metadados vêm destas rotas, todas assinadas e escopadas ao endpoint da instalação. Elas só funcionam com a tarefa `file.*` **desta** transferência em `running` para o endpoint; senão a resposta é `409 transfer.conflict` (tarefa não pega, cancelada, expirada ou já concluída).
+
+| Rota | Corpo / resposta |
+|---|---|
+| `GET /transfers/{id}` | `200` com exatamente 10 chaves: `transfer_id, endpoint_id, direction, size, sha256, chunk_size, chunks_total, remote_path, overwrite, received_chunks` (contratos `tests/contracts/transfer-metadata.json` e `transfer-metadata-fetch.json`). `endpoint_id` é o mesmo uuid recebido no enroll; o Agent confere endpoint e direção. Na recuperação, antes do `begin`, `size`, `sha256` e `chunks_total` são `null`, e `sha256` é sempre `null`. |
+| `GET /transfers/{id}/chunks/{n}` (envio) | `200`, corpo binário `application/octet-stream` + cabeçalho `X-Chunk-Sha256` (hex minúsculo). Chunks de `chunk_size` (2 MiB) exceto o último. |
+| `PUT /transfers/{id}/chunks/{n}` (recuperação) | Corpo bruto `application/octet-stream` (senão `415`), ≤ 2,5 MiB (senão `413`, antes da assinatura). `X-Chunk-Sha256` é obrigatório: ausente ou divergente dá `422 transfer.chunk_hash` e nada é gravado. Reenvio idêntico é idempotente. → `200 {"chunks_received": int}` |
+| `POST /transfers/{id}/begin` (recuperação) | `{"size": int}` → `200 {"status","chunk_size","chunks_total"}`. Tamanho acima do `max_bytes` da política dá `422 transfer.too_large` e a transferência falha. Repetir com o mesmo tamanho mantém o que já chegou; com outro tamanho, recomeça. |
+| `POST /transfers/{id}/complete` | `{"sha256": hex64, "size": int}` → `200 {"status"}`. Hash ou tamanho divergente **não** é erro HTTP: `200 {"status":"failed"}` (bytes descartados). Parte faltando dá `409`. Reenvio idêntico após `completed` é idempotente. |
+
+- Erros: transferência de outro endpoint ou inexistente → `404 request.not_found`; estado ou direção inválidos → `409 transfer.conflict`; `n` fora do intervalo ou tamanho de chunk errado → `422 transfer.invalid`.
+- **Chame `complete` ANTES de enviar o `result` da tarefa.** Depois que a tarefa sai de `running`, um novo `complete` recebe `409`.
+- Limite próprio `agent-transfer`, por instalação: 600 req/min (`toolit.transfers.rate_limit_per_minute`, env `TOOLIT_TRANSFER_RATE_LIMIT`). Não consome o orçamento de 120 req/min das demais rotas.
+
 ### POST /keys/rotate
 `{ "new_public_key":"…" }` assinado com a chave atual; a antiga permanece válida por 5 min.
 

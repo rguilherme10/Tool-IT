@@ -271,14 +271,25 @@ class TransferService
      * Cancela a transferência e, se houver, a tarefa (em execução: o Agent recebe o pedido e as rotas passam a
      * responder conflito).
      *
-     * @throws AuthorizationException sem a permissão da direção + tasks.cancel no endpoint
+     * Envio ainda em `uploading` (rascunho sem tarefa): só quem o criou cancela, e só enquanto ainda tiver
+     * files.transfer_send no computador. Depois que há tarefa (ready/transferring/verifying), vale a regra de
+     * supervisão: permissão da direção + tasks.cancel no escopo.
+     *
+     * @throws AuthorizationException sem permissão (ver acima)
      * @throws TransferException já encerrada
      */
     public function cancel(User $by, FileTransfer $t): FileTransfer
     {
         $t = $this->reload($t);
         $endpoint = $this->endpointOf($t);
-        if ($endpoint === null || ! $this->access->can($by, $t->direction->permission(), $endpoint)
+        if ($endpoint === null) {
+            throw new AuthorizationException('Você não tem permissão para cancelar esta transferência.');
+        }
+        if ($t->direction === TransferDirection::Send && $t->status === TransferStatus::Uploading) {
+            if ((int) $by->id !== (int) $t->created_by || ! $this->access->can($by, Permission::FilesTransferSend, $endpoint)) {
+                throw new AuthorizationException('Só quem iniciou o envio pode cancelá-lo antes de concluir o upload.');
+            }
+        } elseif (! $this->access->can($by, $t->direction->permission(), $endpoint)
             || ! $this->access->can($by, Permission::TasksCancel, $endpoint)) {
             throw new AuthorizationException('Você não tem permissão para cancelar esta transferência.');
         }

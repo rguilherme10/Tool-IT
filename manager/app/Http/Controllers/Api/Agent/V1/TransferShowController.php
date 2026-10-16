@@ -33,6 +33,8 @@ class TransferShowController extends Controller
         // Mesmas chaves nas duas direções (o Agent desserializa um único tipo).
         return response()->json([
             'transfer_id' => $meta['id'],
+            // uuid do computador, o mesmo endpoint_id devolvido no enroll: o Agent confere endpoint e direção.
+            'endpoint_id' => $meta['endpoint_id'],
             'direction' => $meta['direction'],
             'size' => $meta['size'],
             'sha256' => $meta['sha256'],

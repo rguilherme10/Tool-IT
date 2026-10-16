@@ -14,6 +14,7 @@ use App\Models\User;
 use App\Services\Agents\RevocationService;
 use App\Services\Tasks\TaskService;
 use App\Services\Transfers\TransferService;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
@@ -119,6 +120,7 @@ class TransfersApiTest extends TestCase
         }
         $this->assertSame([
             'transfer_id' => $send->uuid,
+            'endpoint_id' => $this->endpoint->uuid,
             'direction' => 'send',
             'size' => 5000,
             'sha256' => hash('sha256', $content),
@@ -129,12 +131,18 @@ class TransfersApiTest extends TestCase
             'received_chunks' => [],
         ], $body);
 
-        // Recuperação: mesmas chaves; antes do begin size/sha256/chunks_total são nulos.
+        // Recuperação antes do begin: bate com transfer-metadata-fetch.json (size/sha256/chunks_total nulos).
+        $fetchContract = $this->contract('transfer-metadata-fetch');
+        $this->assertSame(array_keys($contract), array_keys($fetchContract), 'os dois exemplos têm as mesmas chaves');
         $this->transfers->complete($send->fresh(), hash('sha256', $content), 5000);
         $fetch = $this->newFetch();
         $this->claim($fetch);
         $body = $this->agent->get(self::API.$fetch->uuid)->assertOk()->json();
-        $this->assertSame(array_keys($contract), array_keys($body));
+        $this->assertSame(array_keys($fetchContract), array_keys($body));
+        foreach ($fetchContract as $key => $value) {
+            $this->assertSame(gettype($value), gettype($body[$key]), "tipo de {$key} (recuperação antes do begin)");
+        }
+        $this->assertSame($this->endpoint->uuid, $body['endpoint_id']);
         $this->assertSame('fetch', $body['direction']);
         $this->assertNull($body['size']);
         $this->assertNull($body['sha256']);
@@ -418,6 +426,52 @@ class TransfersApiTest extends TestCase
         $this->assertSame(TransferStatus::Ready, $foreignSend->fresh()->status);
         $this->assertSame(TransferStatus::Ready, $foreignFetch->fresh()->status);
         $this->assertSame([], $this->storedAgentChunks($foreignFetch));
+    }
+
+    public function test_transfer_routes_use_their_own_limiter_after_the_signature(): void
+    {
+        $this->assertSame(600, (int) config('toolit.transfers.rate_limit_per_minute'));
+
+        $routes = [
+            ['GET', 'api/agent/v1/transfers/{uuid}'], ['GET', 'api/agent/v1/transfers/{uuid}/chunks/{n}'],
+            ['PUT', 'api/agent/v1/transfers/{uuid}/chunks/{n}'], ['POST', 'api/agent/v1/transfers/{uuid}/begin'],
+            ['POST', 'api/agent/v1/transfers/{uuid}/complete'],
+        ];
+        foreach ($routes as [$method, $uri]) {
+            $route = collect(Route::getRoutes()->getRoutes())->first(fn ($r) => $r->uri() === $uri && in_array($method, $r->methods(), true));
+            $this->assertNotNull($route, "{$method} {$uri}");
+            $middleware = $route->gatherMiddleware();
+            $this->assertNotContains('throttle:agent-api', $middleware, "{$method} {$uri}");
+            $payload = $method === 'PUT' ? 'agent.payload:2621440' : 'agent.payload';
+            $this->assertSame([$payload, 'agent.signed', 'throttle:agent-transfer'],
+                array_values(array_intersect($middleware, [$payload, 'agent.signed', 'throttle:agent-transfer', 'throttle:agent-api'])),
+                "ordem do middleware em {$method} {$uri}");
+        }
+    }
+
+    public function test_transfer_traffic_has_its_own_budget_and_does_not_starve_agent_api(): void
+    {
+        $send = $this->readySend('0123456789');
+        $fetch = $this->newFetch();
+        $this->claim($send);
+        $this->claim($fetch);
+        $this->agent->post(self::API.$fetch->uuid.'/begin', ['size' => 3])->assertOk();
+
+        // 130 requisições de chunk (> 120 do agent-api) no mesmo minuto: nenhuma 429.
+        for ($i = 0; $i < 65; $i++) {
+            $this->agent->get(self::API.$send->uuid.'/chunks/0')->assertOk();
+            $this->putChunk($fetch, 0, 'abc', hash('sha256', 'abc'))->assertOk();
+        }
+
+        // O orçamento do agent-api (só os 2 claims até aqui) continua intacto.
+        $this->agent->post('/api/agent/v1/heartbeat')->assertOk();
+
+        // O limite do agent-transfer vale: com teto 132 (131 já usadas: begin + 130), a 132ª passa e a 133ª é 429.
+        config(['toolit.transfers.rate_limit_per_minute' => 132]);
+        $this->agent->get(self::API.$send->uuid.'/chunks/0')->assertOk();
+        $this->agent->get(self::API.$send->uuid.'/chunks/0')->assertStatus(429)->assertJsonPath('error.code', 'rate.limited');
+        $this->putChunk($fetch, 0, 'abc', hash('sha256', 'abc'))->assertStatus(429);
+        $this->agent->post('/api/agent/v1/heartbeat')->assertOk();
     }
 
     public function test_revoked_agent_gets_403(): void

@@ -75,6 +75,12 @@ class AppServiceProvider extends ServiceProvider
             (int) config('toolit.agent.rate_limit_per_minute', 120)
         )->by((string) ($r->attributes->get('agent_installation_uuid') ?? $r->ip())));
 
+        // Transferência de arquivos: orçamento próprio (chunks de 2 MiB a ~4 MiB/s já são 120 req/min), mesma chave
+        // por instalação. Não consome o orçamento de agent-api (heartbeat, tasks, progress, result).
+        RateLimiter::for('agent-transfer', fn (Request $r) => Limit::perMinute(
+            (int) config('toolit.transfers.rate_limit_per_minute', 600)
+        )->by((string) ($r->attributes->get('agent_installation_uuid') ?? $r->ip())));
+
         RateLimiter::for('agent-api-preauth', fn (Request $r) => Limit::perMinute(600)->by($r->ip()));
     }
 }

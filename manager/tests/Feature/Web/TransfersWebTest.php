@@ -3,6 +3,7 @@
 namespace Tests\Feature\Web;
 
 use App\Enums\RoleKey;
+use App\Enums\TaskState;
 use App\Enums\TransferStatus;
 use App\Models\Endpoint;
 use App\Models\EndpointGroup;
@@ -346,6 +347,48 @@ class TransfersWebTest extends TestCase
         $this->actingAs($support)->post(route('transfers.cancel', ['transfer' => $fetch->uuid]))->assertRedirect();
         $this->assertSame(TransferStatus::Cancelled, $fetch->fresh()->status);
         $this->assertTrue(RemoteTask::query()->findOrFail($fetch->remote_task_id)->state->isFinal());
+    }
+
+    /** Envio pronto (upload concluído pelo criador, tarefa file.send criada). */
+    private function readySend(): FileTransfer
+    {
+        $t = $this->newSend(10);
+        $this->putChunk($this->operatorA, $t->uuid, 0, '0123456789')->assertOk();
+        $this->completeUpload($this->operatorA, $t->uuid)->assertOk();
+
+        return $t->fresh();
+    }
+
+    public function test_uploading_send_is_cancelled_only_by_its_creator_but_ready_one_is_supervised(): void
+    {
+        $otherOperator = $this->userWithRole(RoleKey::Operator, $this->groupA);
+        $support = $this->userWithRole(RoleKey::Support, $this->groupA);
+        $admin = $this->withTwoFactor($this->userWithRole(RoleKey::Admin));
+        $cancel = fn (User $u, FileTransfer $t) => $this->actingAs($u)->postJson(route('transfers.cancel', ['transfer' => $t->uuid]));
+
+        // Rascunho (uploading, sem tarefa): outro operador e até o admin são negados; só o criador cancela.
+        $draft = $this->newSend(10);
+        $cancel($otherOperator, $draft)->assertForbidden();
+        $cancel($admin, $draft)->assertForbidden();
+        $this->assertSame(TransferStatus::Uploading, $draft->fresh()->status);
+        // Criador que perdeu files.transfer_send também não.
+        $this->swapRole($this->operatorA, RoleKey::Support, $this->groupA);
+        $cancel($this->operatorA, $draft)->assertForbidden();
+        $this->swapRole($this->operatorA, RoleKey::Operator, $this->groupA);
+        $cancel($this->operatorA, $draft)->assertOk()->assertJsonPath('status', 'cancelled');
+
+        // Com tarefa (ready): supervisão — outro operador do grupo cancela, e a tarefa é cancelada junto.
+        $ready = $this->readySend();
+        $this->assertSame(TransferStatus::Ready, $ready->status);
+        $cancel($support, $ready)->assertForbidden(); // Suporte não tem files.transfer_send
+        $this->assertSame(TransferStatus::Ready, $ready->fresh()->status);
+        $cancel($otherOperator, $ready)->assertOk()->assertJsonPath('status', 'cancelled');
+        $this->assertSame(TaskState::Cancelled, RemoteTask::query()->findOrFail($ready->remote_task_id)->state);
+
+        // Admin cancela um envio pronto de outra pessoa.
+        $another = $this->readySend();
+        $cancel($admin, $another)->assertOk()->assertJsonPath('status', 'cancelled');
+        $this->assertSame(TaskState::Cancelled, RemoteTask::query()->findOrFail($another->remote_task_id)->state);
     }
 
     // --- download --------------------------------------------------------------------------------

@@ -452,7 +452,8 @@ class TransferServiceTest extends TestCase
                 $this->addToAssertionCount(1);
             }
         }
-        foreach ([$outsider, $support] as $user) {
+        // Rascunho em uploading: só o criador cancela (outro operador com escopo global também não).
+        foreach ([$otherOperator, $outsider, $support] as $user) {
             try {
                 $this->transfers->cancel($user, $t->fresh());
                 $this->fail('Cancelamento sem permissão no escopo');

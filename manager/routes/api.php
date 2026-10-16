@@ -35,8 +35,11 @@ Route::prefix('agent/v1')->middleware('throttle:agent-api-preauth')->group(funct
         Route::get('tasks/next', TaskNextController::class);
         Route::post('tasks/{uuid}/progress', TaskProgressController::class);
         Route::post('tasks/{uuid}/result', TaskResultController::class);
+    });
 
-        // Transferência de arquivos (task 009): só do próprio computador e com a tarefa file.* em execução.
+    // Transferência de arquivos (task 009): só do próprio computador e com a tarefa file.* em execução.
+    // Limite próprio (agent-transfer), depois da assinatura; não consome o orçamento de agent-api.
+    Route::middleware(['agent.payload', 'agent.signed', 'throttle:agent-transfer'])->group(function () {
         Route::get('transfers/{uuid}', TransferShowController::class)->whereUuid('uuid');
         Route::get('transfers/{uuid}/chunks/{n}', TransferChunkGetController::class)->whereUuid('uuid')->where('n', '0|[1-9][0-9]{0,8}');
         Route::post('transfers/{uuid}/begin', TransferBeginController::class)->whereUuid('uuid');
@@ -44,7 +47,7 @@ Route::prefix('agent/v1')->middleware('throttle:agent-api-preauth')->group(funct
     });
 
     // Chunk da recuperação (corpo binário bruto de até 2 MiB): teto próprio de 2,5 MiB, ainda ANTES da assinatura.
-    Route::middleware(['agent.payload:2621440', 'agent.signed', 'throttle:agent-api'])->group(function () {
+    Route::middleware(['agent.payload:2621440', 'agent.signed', 'throttle:agent-transfer'])->group(function () {
         Route::put('transfers/{uuid}/chunks/{n}', TransferChunkPutController::class)->whereUuid('uuid')->where('n', '0|[1-9][0-9]{0,8}');
     });
 

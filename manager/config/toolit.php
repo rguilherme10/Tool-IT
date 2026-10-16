@@ -60,6 +60,8 @@ return [
         // Tamanho do chunk do upload pelo navegador (1 MiB) e do trânsito Agent <-> Manager (2 MiB).
         'browser_chunk_bytes' => 1048576,
         'agent_chunk_bytes' => 2097152,
+        // Limite das rotas de transferência do Agent, por instalação (separado de toolit.agent.rate_limit_per_minute).
+        'rate_limit_per_minute' => (int) env('TOOLIT_TRANSFER_RATE_LIMIT', 600),
     ],
 
     'audit' => [
