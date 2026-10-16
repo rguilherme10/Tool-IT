@@ -12,6 +12,7 @@ use App\Http\Controllers\Web\FileTransferPolicyController;
 use App\Http\Controllers\Web\GroupController;
 use App\Http\Controllers\Web\SecurityController;
 use App\Http\Controllers\Web\TaskController;
+use App\Http\Controllers\Web\TransferController;
 use App\Http\Controllers\Web\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -37,6 +38,16 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('/tasks/{task}/cancel', [TaskController::class, 'cancel'])->whereUuid('task')->name('tasks.cancel');
         Route::post('/tasks/{task}/approve', [TaskController::class, 'approve'])->whereUuid('task')->name('tasks.approve');
         Route::post('/tasks/{task}/reject', [TaskController::class, 'reject'])->whereUuid('task')->name('tasks.reject');
+
+        // Transferência de arquivos (task 009). Os chunks do upload são corpo bruto; n só com dígitos.
+        Route::post('/endpoints/{uuid}/transfers', [TransferController::class, 'store'])->whereUuid('uuid')->name('transfers.store');
+        Route::post('/endpoints/{uuid}/transfers/fetch', [TransferController::class, 'fetch'])->whereUuid('uuid')->name('transfers.fetch');
+        Route::put('/transfers/{transfer}/upload/{n}', [TransferController::class, 'upload'])->whereUuid('transfer')
+            ->where('n', '0|[1-9][0-9]{0,8}')->name('transfers.upload');
+        Route::get('/transfers/{transfer}/upload', [TransferController::class, 'uploadStatus'])->whereUuid('transfer')->name('transfers.upload.status');
+        Route::post('/transfers/{transfer}/upload/complete', [TransferController::class, 'completeUpload'])->whereUuid('transfer')->name('transfers.upload.complete');
+        Route::post('/transfers/{transfer}/cancel', [TransferController::class, 'cancel'])->whereUuid('transfer')->name('transfers.cancel');
+        Route::get('/transfers/{transfer}/download', [TransferController::class, 'download'])->whereUuid('transfer')->name('transfers.download');
 
         Route::resource('alert-rules', AlertRuleController::class)->except('show')->parameters(['alert-rules' => 'rule']);
 

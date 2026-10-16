@@ -1,0 +1,11 @@
+{
+  "transfer_id": "3d6f0a2b-5c4e-4b1a-9f8e-7d6c5b4a3f21",
+  "direction": "send",
+  "size": 5243880,
+  "sha256": "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08",
+  "chunk_size": 2097152,
+  "chunks_total": 3,
+  "remote_path": "C:\\ProgramData\\Toolit\\Inbox\\relatorio.pdf",
+  "overwrite": false,
+  "received_chunks": []
+}

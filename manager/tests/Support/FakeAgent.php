@@ -120,6 +120,51 @@ class FakeAgent
         return $this->request('GET', $uri, null, $tweak);
     }
 
+    /**
+     * PUT assinado com corpo binário bruto (chunks de transferência). A assinatura cobre EXATAMENTE estes bytes
+     * (o hash do corpo é calculado aqui, sobre a string recebida). $headers usa nomes HTTP comuns
+     * (ex.: 'X-Chunk-Sha256'); $tweak aceita as mesmas chaves de request().
+     *
+     * @param  array<string, string>  $headers
+     */
+    public function putRaw(string $uri, string $bytes, array $headers = [], array $tweak = []): TestResponse
+    {
+        $parts = parse_url($uri);
+        $path = $parts['path'];
+        $query = $parts['query'] ?? '';
+
+        $timestamp = (string) ($tweak['timestamp'] ?? now()->timestamp);
+        $nonce = $tweak['nonce'] ?? rtrim(strtr(base64_encode(random_bytes(18)), '+/', '-_'), '=');
+        $signature = $tweak['signature'] ?? $this->sign(
+            $tweak['signed_method'] ?? 'PUT',
+            $tweak['signed_path'] ?? $path,
+            $tweak['signed_query'] ?? $query,
+            $timestamp,
+            $nonce,
+            $tweak['signed_body'] ?? $bytes,
+        );
+
+        $server = array_filter([
+            'HTTP_X_AGENT_ID' => $tweak['agent_id'] ?? $this->agentId,
+            'HTTP_X_TIMESTAMP' => $timestamp,
+            'HTTP_X_NONCE' => $nonce,
+            'HTTP_X_SIGNATURE' => $signature,
+            'HTTP_X_AGENT_VERSION' => '0.1.0',
+            'CONTENT_TYPE' => 'application/octet-stream',
+            'CONTENT_LENGTH' => (string) strlen($bytes),
+            'HTTP_ACCEPT' => 'application/json',
+        ], fn ($v) => $v !== null);
+
+        foreach ($headers as $name => $value) {
+            $server['HTTP_'.strtoupper(str_replace('-', '_', $name))] = $value;
+        }
+        foreach ($tweak['drop_headers'] ?? [] as $drop) {
+            unset($server[$drop]);
+        }
+
+        return $this->test->call('PUT', $uri, [], [], [], $server, $bytes);
+    }
+
     public function sign(string $method, string $path, string $query, string $timestamp, string $nonce, string $body): string
     {
         $params = $query === '' ? [] : explode('&', $query);
