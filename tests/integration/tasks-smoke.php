@@ -5,19 +5,28 @@
 | Simula um Agent de forma independente (docs/api/agent-api-v1.md §tasks): enroll, poll curto
 | `GET /tasks/next?wait=0` assinado (query entra na assinatura), `result` e suas recusas.
 |
-|   php tests/integration/tasks-smoke.php http://127.0.0.1:8000 tk_TOKEN [segundos-de-espera]
+|   php tests/integration/tasks-smoke.php http://127.0.0.1:8000 tk_TOKEN [segundos-de-espera] [--allow-remote]
 |
+| Atenção: o script registra (enroll) um computador descartável no Manager alvo; revogue-o depois.
+| Só aceita URL de loopback (127.0.0.1, localhost, ::1), a menos que se passe --allow-remote.
 | Depois do enroll o script imprime o endpoint_id e espera (padrão 120 s) até alguém criar, no painel,
 | uma tarefa de BAIXO risco (ex.: "Informações do sistema") para esse computador. Nada é executado
 | de verdade: o script só devolve um resultado fictício. Sai com código 0 se todas as verificações passarem.
 */
 
-[$self, $base, $token, $waitSeconds] = $argv + [null, null, null, '120'];
+$args = array_slice($argv, 1);
+$allowRemote = in_array('--allow-remote', $args, true);
+[$base, $token, $waitSeconds] = array_values(array_diff($args, ['--allow-remote'])) + [null, null, '120'];
 if (! $base || ! $token) {
-    fwrite(STDERR, "uso: php tasks-smoke.php <url-base> <enrollment-token> [segundos-de-espera]\n");
+    fwrite(STDERR, "uso: php tasks-smoke.php <url-base> <enrollment-token> [segundos-de-espera] [--allow-remote]\n");
     exit(2);
 }
 $base = rtrim($base, '/');
+$host = strtolower(trim((string) parse_url($base, PHP_URL_HOST), '[]'));
+if (! $allowRemote && ! in_array($host, ['127.0.0.1', 'localhost', '::1'], true)) {
+    fwrite(STDERR, "recusado: '{$base}' não é loopback; passe --allow-remote se for intencional.\n");
+    exit(2);
+}
 $failures = 0;
 
 function check(string $name, bool $ok, string $detail = ''): void
@@ -112,6 +121,11 @@ sort($keys);
 sort($expected);
 check('corpo de next tem exatamente os 7 campos do contrato', $keys === $expected, implode(',', array_keys($task)));
 check('tarefa entregue é de baixo risco', ($task['risk'] ?? '') === 'low', 'risk='.($task['risk'] ?? '?'));
+if (($task['risk'] ?? '') !== 'low') {
+    // Nunca devolver resultado fictício para uma tarefa que alteraria o sistema: o painel mostraria algo que não aconteceu.
+    fwrite(STDERR, "abortado: a tarefa entregue ({$task['type']}, risco ".($task['risk'] ?? '?').") não é de baixo risco; nenhum resultado foi enviado. Cancele-a no painel.\n");
+    exit(1);
+}
 
 [$s] = $call('GET', $next, 'wait=0');
 check('a mesma tarefa não é entregue duas vezes (204)', $s === 204, "status={$s}");

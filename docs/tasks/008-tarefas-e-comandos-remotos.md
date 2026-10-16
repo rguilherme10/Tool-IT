@@ -49,7 +49,8 @@ Máquina de estados, corrida de claim (dois consumidores), idempotência, permis
 Evidências: `docs/test-evidence.md` §“Tarefas remotas — E2E com Agent real (2026-10-15)”.
 - [x] Tarefa read-only ponta a ponta com agente real (`system.info`, `process.list`, `service.list`, `inventory.refresh`: `completed` com saída real, 2–11 s)
 - [ ] Reinício de serviço autorizado com resultado — **não validado**: só *fakes* (testes do Agent); serviço real do Windows exige Administrador/VM (L32). Encerrar processo aprovado por outro Admin foi validado em processo descartável
-- [x] Tentativa de matar `lsass` rejeitada — pelo nome pedido (`{pid: <ping descartável>, name: "lsass"}` → `rejected`, processo intacto) e por testes de unidade. **Não executado** contra o `lsass` real (só em VM)
+- [x] Tentativa de matar `lsass` rejeitada pelo nome na lista de protegidos (E2E com PID descartável: `{pid: <ping descartável>, name: "lsass"}` → `rejected`, processo intacto; também por testes de unidade)
+- [ ] Tentativa de matar `lsass` pelo PID real do `lsass` numa VM (não executado)
 - [ ] Duplicação impossível por teste de concorrência — provado sequencialmente em SQLite (claim condicional; no E2E a mesma tarefa não foi entregue duas vezes); `[ ] concorrência real do claim em MySQL` (L30, task 013)
 - [x] Tudo auditado (`task.created|approved|claimed|completed|failed|cancelled`; `audit:verify` íntegro, 65 registros)
 
