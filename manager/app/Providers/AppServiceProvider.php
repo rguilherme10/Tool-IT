@@ -3,13 +3,16 @@
 namespace App\Providers;
 
 use App\Enums\Permission;
+use App\Events\RemoteTaskFinished;
 use App\Models\Endpoint;
 use App\Models\User;
+use App\Services\Transfers\TransferService;
 use App\Support\Authorization\AccessResolver;
 use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -37,6 +40,10 @@ class AppServiceProvider extends ServiceProvider
 
         $this->defineGates();
         $this->defineRateLimiters();
+
+        // Fim de tarefa file.* atualiza a transferência na mesma transação (TaskService não depende de TransferService).
+        // Resolvido só no disparo: nada de TransferService no construtor de TaskService.
+        Event::listen(RemoteTaskFinished::class, fn (RemoteTaskFinished $e) => $this->app->make(TransferService::class)->onTaskFinished($e->task));
     }
 
     /**

@@ -6,6 +6,7 @@ use App\Enums\EndpointStatus;
 use App\Enums\Permission;
 use App\Enums\TaskRisk;
 use App\Enums\TaskState;
+use App\Events\RemoteTaskFinished;
 use App\Exceptions\TaskConflictException;
 use App\Models\AgentInstallation;
 use App\Models\Endpoint;
@@ -555,6 +556,12 @@ class TaskService
         if ($affected !== 1) {
             $current = RemoteTask::query()->whereKey($task->id)->toBase()->value('state');
             throw new \DomainException("Tarefa no estado '{$current}' não pode passar para '{$to->value}'.");
+        }
+
+        // Ponto único de finalização: avisa os interessados (ex.: TransferService) na MESMA transação — se um
+        // listener lançar, a transição é desfeita. Cópia relida: $task do chamador mantém o estado anterior.
+        if ($to->isFinal()) {
+            event(new RemoteTaskFinished(RemoteTask::query()->findOrFail($task->id)));
         }
     }
 

@@ -9,7 +9,6 @@ use App\Models\Endpoint;
 use App\Models\RemoteTask;
 use App\Services\Tasks\TaskService;
 use App\Support\Authorization\AccessResolver;
-use App\Support\Tasks\TaskCatalog;
 use App\Support\Tasks\TaskForm;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,7 +30,7 @@ class TaskController extends Controller
         $endpoint = EndpointController::resolveVisible($this->access, $request, $uuid);
 
         $data = $request->validate([
-            'type' => ['required', 'string', Rule::in(TaskCatalog::types())],
+            'type' => ['required', 'string', Rule::in(TaskForm::types())],
             'idempotency_key' => ['required', 'uuid'],
         ]);
 

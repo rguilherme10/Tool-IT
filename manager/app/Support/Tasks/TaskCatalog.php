@@ -17,6 +17,12 @@ final class TaskCatalog
 
     private const SERVICE_TYPES = ['service.start', 'service.stop', 'service.restart'];
 
+    /** Criadas só por App\Services\Transfers\TransferService; o único parâmetro é o UUID da transferência. */
+    private const FILE_TYPES = ['file.send', 'file.fetch'];
+
+    /** UUID canônico em minúsculas (como Str::uuid gera); \z para não aceitar quebra de linha final. */
+    private const UUID_PATTERN = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\z/';
+
     /** @var array<string, TaskDefinition>|null */
     private static ?array $definitions = null;
 
@@ -33,6 +39,9 @@ final class TaskCatalog
             new TaskDefinition('service.restart', false, 60, 1, [Permission::ServicesControl]),
             new TaskDefinition('process.kill', false, 15, 1, [Permission::ProcessesKill]),
             new TaskDefinition('agent.restart', false, 30, 1),
+            // O Agent obtém caminho e metadados por GET /transfers/{id}; o progress renova a lease.
+            new TaskDefinition('file.send', true, 900, 3, [Permission::FilesTransferSend]),
+            new TaskDefinition('file.fetch', true, 900, 3, [Permission::FilesTransferFetch]),
         ])->keyBy('type')->all();
     }
 
@@ -64,6 +73,7 @@ final class TaskCatalog
         $allowedKeys = match (true) {
             in_array($type, self::SERVICE_TYPES, true) => ['name'],
             $type === 'process.kill' => ['pid', 'name'],
+            in_array($type, self::FILE_TYPES, true) => ['transfer_id'],
             default => [],
         };
 
@@ -81,6 +91,15 @@ final class TaskCatalog
             }
 
             return ['name' => $name];
+        }
+
+        if (in_array($type, self::FILE_TYPES, true)) {
+            $id = self::requireString($params, 'transfer_id');
+            if (preg_match(self::UUID_PATTERN, $id) !== 1) {
+                throw ValidationException::withMessages(['params.transfer_id' => 'Identificador de transferência inválido.']);
+            }
+
+            return ['transfer_id' => $id];
         }
 
         if ($type === 'process.kill') {
@@ -109,6 +128,8 @@ final class TaskCatalog
                 ? TaskRisk::Medium
                 : TaskRisk::High,
             in_array($type, ['process.kill', 'agent.restart'], true) => TaskRisk::High,
+            // Risco médio nos dois sentidos por decisão do dono (spec D); a política e o veto do Agent são o controle.
+            in_array($type, self::FILE_TYPES, true) => TaskRisk::Medium,
             default => TaskRisk::Low,
         };
     }

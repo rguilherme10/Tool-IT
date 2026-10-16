@@ -25,9 +25,21 @@ final class TaskForm
         'agent.restart' => ['label' => 'Reiniciar o agente', 'help' => 'Alto risco: exige aprovação de outra pessoa.'],
     ];
 
+    /** Rótulos de tipos que NÃO entram no formulário genérico (criados por fluxos próprios, como a aba Arquivos). */
+    private const OTHER_LABELS = [
+        'file.send' => 'Enviar arquivo',
+        'file.fetch' => 'Recuperar arquivo',
+    ];
+
+    /** Tipos que o formulário genérico pode criar (lista fechada; file.* ficam de fora). @return list<string> */
+    public static function types(): array
+    {
+        return array_values(array_intersect(array_keys(self::TYPES), TaskCatalog::types()));
+    }
+
     public static function label(string $type): string
     {
-        return self::TYPES[$type]['label'] ?? $type;
+        return self::TYPES[$type]['label'] ?? self::OTHER_LABELS[$type] ?? $type;
     }
 
     public static function help(string $type): string
@@ -78,7 +90,7 @@ final class TaskForm
     public static function creatableTypes(User $user, Endpoint $endpoint, AccessResolver $access): array
     {
         $allowed = [];
-        foreach (TaskCatalog::types() as $type) {
+        foreach (self::types() as $type) {
             foreach (self::representativeParams($type) as $params) {
                 $permitted = true;
                 foreach (TaskCatalog::permissionsFor($type, $params) as $permission) {
