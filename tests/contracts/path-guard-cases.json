@@ -171,6 +171,11 @@
             "why": "ok"
         },
         {
+            "path": "C:\\Dados\\\ud835\udc00bc\\\ud835\udc00",
+            "ok": true,
+            "why": "ok"
+        },
+        {
             "path": "C:\\Dados\\CONSOLE\\NULO\\COM10\\LPT0\\AUXILIAR",
             "ok": true,
             "why": "ok"
@@ -779,6 +784,11 @@
         },
         {
             "name": "re\u0430l.pdf",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "\ud835\udc00 (1).txt",
             "ok": true,
             "why": "ok"
         },
