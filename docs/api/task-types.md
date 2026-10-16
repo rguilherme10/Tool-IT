@@ -15,6 +15,8 @@ Fonte da verdade: `App\Support\Tasks\TaskCatalog` (Manager) e `AgentToolit.Core.
 | `service.restart` | idem | idem | **não** / 1 | 60 s | `name` |
 | `process.kill` | high | `tasks.create_high_risk` + `processes.kill` | **não** / 1 | 15 s | `pid`, `name` |
 | `agent.restart` | high | `tasks.create_high_risk` | **não** / 1 | 30 s | nenhum |
+| `file.send` | medium (decisão do dono, ADR-022) | `tasks.create` + `files.transfer_send` | sim / 3 | 900 s | `transfer_id` (UUID) |
+| `file.fetch` | medium (decisão do dono, ADR-022) | `tasks.create` + `files.transfer_fetch` | sim / 3 | 900 s | `transfer_id` (UUID) |
 
 Alto risco nasce `pending_approval` e só vai para `available` com aprovação de **outro** usuário com `tasks.approve` (separação de funções aplicada no `TaskService`, não só na tela). Low/medium nascem `available`.
 
@@ -23,6 +25,15 @@ Alto risco nasce `pending_approval` e só vai para `available` com aprovação d
 - `name` de serviço: `^[A-Za-z0-9_.$-]{1,128}\z` (nome do serviço, nunca o de exibição). `service.stop`/`service.restart` de serviço protegido são recusados já na criação (422) e de novo no Agent.
 - `pid`: inteiro JSON ≥ 5 (0–4 são do sistema). `name` do processo: 1–128 caracteres, sem caracteres de controle; o Agent exige que o processo vivo naquele PID tenha esse nome (com ou sem `.exe`, sem diferenciar maiúsculas) — proteção contra reutilização de PID.
 - No painel, o PID digitado (texto só com dígitos) vira inteiro; qualquer outra coisa segue como veio e é recusada pelo catálogo. Observação: o middleware `TrimStrings` do Laravel apara espaços/quebras de linha nas pontas dos campos do formulário antes da validação (`"Spooler\n"` vira `"Spooler"`); pela API interna (`TaskService`) o mesmo valor é recusado.
+
+## Transferência de arquivos (`file.send` / `file.fetch`, task 009)
+- **Lista fechada:** só são criadas pelo `TransferService` (aba Arquivos). O formulário genérico de tarefas (`TaskForm::types()`) e a rota `POST /endpoints/{uuid}/tasks` recusam `file.*`.
+- O único parâmetro é `transfer_id`; caminho, tamanho, hash e direção vêm de `GET /transfers/{id}` (revalidado contra a política atual) e o Agent confere `endpoint_id` e direção. Nada de caminho nos parâmetros.
+- Sem política efetiva para o endpoint (grupo mais próximo na árvore) → transferência desligada. Extensões executáveis sempre bloqueadas (`exe dll bat cmd ps1 psm1 vbs vbe js jse wsf msi msp scr com pif lnk hta jar cpl reg sys drv`), mesmo se listadas — a tela recusa listá-las.
+- Veto local do Agent: vale política **∩** `TransferRoots` (padrão `%ProgramData%\Toolit\Inbox` e `…\Outbox`; `TransferFetchOnlyRoots` = `…\Logs`, só recuperação). Raiz que não passa na conferência de dono/DACL é excluída na subida do serviço.
+- O Agent envia `progress` a cada mudança de percentual (ou 15 s), o que renova a lease. `complete` é chamado **antes** do `result`.
+- Fim da tarefa sem confirmação → a transferência falha; tarefa cancelada → transferência cancelada; revogar/desativar o endpoint cancela as transferências abertas (`verifying` vai a `failed`).
+- Saída: `Arquivo X recebido (N bytes, sha256 …)` / `Arquivo X enviado …`; `rejected` com o motivo do `PathGuard` (fora das pastas, link, nome inválido, executável) ou "Transferências desligadas neste computador"; `cancelled` quando o Manager responde `409`. Regras de caminho: [`path-guard.md`](path-guard.md).
 
 ## Listas de serviços
 - Allowlist (medium): padrão `Spooler`, `W32Time`, `BITS`, `wuauserv` (`config('toolit.tasks.service_allowlist')`), sobreposta por `system_settings.tasks.service_allowlist`.

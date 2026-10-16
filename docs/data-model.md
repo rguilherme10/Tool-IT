@@ -50,7 +50,14 @@ Não implementado: `peripheral_inventory` separado (periféricos ficam em `endpo
 Transições só pelo `TaskService` com UPDATE condicional no estado (ver ADR-021); máximo de tentativas e timeout vêm do catálogo (não são colunas). **Retenção: nenhuma ainda** — tarefas e attempts (com a saída) crescem sem limpeza automática (L40).
 
 ## Arquivos (Fase 3)
-`file_inventory_policies`, `file_inventory_items`, `file_transfers` (direção, caminho canônico, size, sha256, status, retention_until) — pendente (task 009).
+`file_inventory_policies`, `file_inventory_items` — pendente (task 006). Transferência de arquivos ✔ implementada (task 009, ADR-022):
+
+| Tabela | Colunas principais | Índices / regras |
+|---|---|---|
+| `file_transfer_policies` | uuid, `endpoint_group_id` (nulo = padrão global; FK cascade — remover o grupo remove a política, L47), `scope_key` (`global` ou `group:<id>`), `send_dirs` / `fetch_dirs` / `allowed_extensions` (json; lista vazia = direção desligada; extensões obrigatórias se houver `send_dirs`), `max_bytes` (padrão 104857600), `allow_overwrite` (padrão falso), `updated_by`, timestamps | `scope_key` único (uma por escopo). Política efetiva = a do grupo mais próximo na árvore; nenhuma = transferências desligadas |
+| `file_transfers` | uuid, endpoint_id (FK cascade), `remote_task_id` (FK null on delete), `direction` (`send`/`fetch`), `created_by`, `original_name` (só metadado), `stored_name` (UUID do servidor), `remote_path` (≤ 300), `size`, `sha256`, `chunk_size`, `chunks_total`, `chunks_received`, `overwrite`, `status` (`uploading`, `ready`, `transferring`, `verifying`, `completed`, `failed`, `cancelled`, `expired` — `App\Enums\TransferStatus`), `error` (≤ 255), `expires_at` (prazo do upload pelo navegador, 24 h), `purged_at` (blobs apagados pela retenção), timestamps | uuid único; `(endpoint_id, status)`, `(status, expires_at)`, `remote_task_id` |
+
+Bytes fora do banco, no disco privado `local` (`storage/app/private/transfers/{uuid}/`: `up/{n}` do navegador, `in/{n}` do Agent, `file.bin` montado), fora do webroot; nenhum nome vindo do cliente vira caminho no servidor.
 
 ## Suporte remoto e versões (Fase 4/5)
 `remote_sessions` (operator, endpoint, status, started/ended, end_reason, quality, ws token hash, expires_at), `agent_versions` (version, sha256, signature, channel, mandatory), `agent_update_jobs`.
@@ -64,7 +71,7 @@ Transições só pelo `TaskService` com UPDATE condicional no estado (ver ADR-02
 | process_snapshots | 24 h | job horário |
 | alerts resolvidos | 12 meses | job |
 | audit_logs | 24 meses (min. 12) | `audit:archive` privilegiado, auditado |
-| file transfers temp | 7 d | job |
+| file transfers: partes, blobs montados e uploads abandonados | 7 d após o fim (`toolit.transfers.retention_days`); upload não concluído expira em 24 h | `transfers:prune` diário 03:45 — metadados ficam com `purged_at` (E2E 2026-10-16) |
 | remote_sessions metadados | 24 meses | job |
 | remote_tasks / remote_task_attempts | **sem retenção definida** (não implementado) | — (L40) |
 Todas configuráveis em `system_settings` (`retention.*`).

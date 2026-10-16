@@ -19,7 +19,7 @@ Regras para o agente executor:
 | 006 | Inventário hardware/software | 2 | 005 | ✔ inventário · política de arquivos pendente |
 | 007 | Monitoramento e alertas | 2 | 005,006 | parcial (métricas) · alertas pendentes |
 | 008 | Tarefas e comandos remotos | 3 | 004,005 | parcial: tarefas tipadas prontas; PowerShell fora do ciclo; serviço real não validado |
-| 009 | Transferência de arquivos | 3 | 008 | pendente |
+| 009 | Transferência de arquivos | 3 | 008 | parcial: envio/recuperação/retomada/retenção com E2E (handlers em processo) · serviço real, ACL elevada, UNC e antivírus não validados; sem retomada após queda de rede (L49) |
 | 010 | Suporte remoto de tela | 4 | 005,008 | pendente |
 | 011 | Interface administrativa | 2–5 (incremental) | 003 | pendente |
 | 012 | Instalação, atualização, distribuição | 5 | 005 | parcial: MSI + serviço (não validado em instalação real) · assinatura, atualização assinada, GPO e anéis pendentes |

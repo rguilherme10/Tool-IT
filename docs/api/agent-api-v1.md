@@ -167,6 +167,8 @@ A tarefa traz só `params.transfer_id`; caminho e metadados vêm destas rotas, t
 - Erros: transferência de outro endpoint ou inexistente → `404 request.not_found`; estado ou direção inválidos → `409 transfer.conflict`; `n` fora do intervalo ou tamanho de chunk errado → `422 transfer.invalid`.
 - **Chame `complete` ANTES de enviar o `result` da tarefa.** Depois que a tarefa sai de `running`, um novo `complete` recebe `409`.
 - Limite próprio `agent-transfer`, por instalação: 600 req/min (`toolit.transfers.rate_limit_per_minute`, env `TOOLIT_TRANSFER_RATE_LIMIT`). Não consome o orçamento de 120 req/min das demais rotas.
+- Retomada: no envio o Agent continua do tamanho do `.toolit-{id}.part` (múltiplo de `chunk_size`); na recuperação usa `received_chunks`. Só acontece quando a **mesma** tarefa volta a ser entregue (lease vencida → `tasks:expire` recoloca a idempotente na fila). Uma falha de rede durante a transferência faz o Agent reportar `failed`, e o Manager encerra tarefa e transferência sem nova tentativa (L49).
+- Verificado em 2026-10-16 contra Manager real (`docs/test-evidence.md` §"Transferência de arquivos — E2E"): handlers reais em processo e `tests/integration/transfers-smoke.php` (24/24).
 
 ### POST /keys/rotate
 `{ "new_public_key":"…" }` assinado com a chave atual; a antiga permanece válida por 5 min.
@@ -177,7 +179,7 @@ A tarefa traz só `params.transfer_id`; caminho e metadados vêm destas rotas, t
 Implementados em `App\Http\Requests\Api\Agent\*`; contratos espelhados em `Toolit.Agent.Contracts`. Testes de contrato em ambos os lados usam os mesmos JSONs em `tests/contracts/`.
 
 ## 5. Limites padrão (configuráveis em `system_settings`)
-payload 1 MiB · 120 amostras/lote · heartbeat 60 s · métricas 60 s · inventário 24 h · rate limit 120 req/min por instalação · nonce TTL 5 min.
+payload 1 MiB (PUT de chunk de transferência: 2,5 MiB) · 120 amostras/lote · heartbeat 60 s · métricas 60 s · inventário 24 h · rate limit 120 req/min por instalação (rotas de transferência: 600 req/min, limite `agent-transfer` separado) · nonce TTL 5 min · chunk do Agent 2 MiB, banda do Agent 4 MiB/s (`TransferBytesPerSecond`).
 
 ## 6. Indisponibilidade do servidor
 Agent mantém fila local (SQLite, limitada por contagem e bytes; descarte do mais antigo de menor prioridade), reenvia em ordem com backoff exponencial + jitter, e nunca bloqueia coleta. Resultados de tarefas expiradas no servidor são rejeitados com 409 e descartados.
