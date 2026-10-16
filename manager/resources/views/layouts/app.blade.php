@@ -25,6 +25,7 @@
                 @can('settings.manage')
                     <a href="{{ route('alert-rules.index') }}" class="hover:text-slate-900">Regras de alerta</a>
                     <a href="{{ route('groups.index') }}" class="hover:text-slate-900">Grupos</a>
+                    <a href="{{ route('file-policies.index') }}" class="hover:text-slate-900">Política de arquivos</a>
                 @endcan
                 @can('users.manage')
                     <a href="{{ route('users.index') }}" class="hover:text-slate-900">Usuários</a>

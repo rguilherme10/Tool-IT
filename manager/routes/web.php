@@ -8,6 +8,7 @@ use App\Http\Controllers\Web\DashboardController;
 use App\Http\Controllers\Web\EndpointController;
 use App\Http\Controllers\Web\EndpointManagementController;
 use App\Http\Controllers\Web\EnrollmentTokenController;
+use App\Http\Controllers\Web\FileTransferPolicyController;
 use App\Http\Controllers\Web\GroupController;
 use App\Http\Controllers\Web\SecurityController;
 use App\Http\Controllers\Web\TaskController;
@@ -43,6 +44,8 @@ Route::middleware(['auth', 'active'])->group(function () {
         Route::post('/audit/verify', [AuditController::class, 'verify'])->name('audit.verify');
 
         Route::resource('groups', GroupController::class)->except('show')->parameters(['groups' => 'group']);
+        Route::resource('settings/file-policies', FileTransferPolicyController::class)->except('show')->names('file-policies')
+            ->parameters(['file-policies' => 'policy'])->whereUuid('policy');
         Route::post('/endpoints/{uuid}/group', [EndpointManagementController::class, 'moveGroup'])->whereUuid('uuid')->name('endpoints.group');
         Route::post('/endpoints/{uuid}/status', [EndpointManagementController::class, 'setStatus'])->whereUuid('uuid')->name('endpoints.status');
 
