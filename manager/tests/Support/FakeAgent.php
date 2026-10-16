@@ -114,6 +114,12 @@ class FakeAgent
         return $this->request('POST', $uri, $body, $tweak);
     }
 
+    /** GET assinado; a query de $uri entra na string canônica. */
+    public function get(string $uri, array $tweak = []): TestResponse
+    {
+        return $this->request('GET', $uri, null, $tweak);
+    }
+
     public function sign(string $method, string $path, string $query, string $timestamp, string $nonce, string $body): string
     {
         $params = $query === '' ? [] : explode('&', $query);

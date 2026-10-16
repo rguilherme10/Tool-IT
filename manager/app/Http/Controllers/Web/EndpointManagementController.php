@@ -7,15 +7,21 @@ use App\Enums\Permission;
 use App\Http\Controllers\Controller;
 use App\Models\EndpointGroup;
 use App\Services\Audit\AuditLogger;
+use App\Services\Tasks\TaskService;
 use App\Support\Authorization\AccessResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /** Gestão de um computador: mover de grupo e desativar/reativar. Exige `endpoints.manage` no escopo do computador. */
 class EndpointManagementController extends Controller
 {
-    public function __construct(private readonly AccessResolver $access, private readonly AuditLogger $audit) {}
+    public function __construct(
+        private readonly AccessResolver $access,
+        private readonly AuditLogger $audit,
+        private readonly TaskService $tasks,
+    ) {}
 
     public function moveGroup(Request $request, string $uuid): RedirectResponse
     {
@@ -51,8 +57,15 @@ class EndpointManagementController extends Controller
             return back()->with('status', 'Nada a alterar.');
         }
 
-        $endpoint->update(['status' => $new]);
-        $this->audit->log($new === EndpointStatus::Disabled ? 'endpoint.disabled' : 'endpoint.enabled', $request->user(), $endpoint, $endpoint->id);
+        DB::transaction(function () use ($endpoint, $new, $request) {
+            $endpoint->update(['status' => $new]);
+            $this->audit->log($new === EndpointStatus::Disabled ? 'endpoint.disabled' : 'endpoint.enabled', $request->user(), $endpoint, $endpoint->id);
+
+            // Computador desativado não executa tarefas: as abertas são canceladas na mesma transação.
+            if ($new === EndpointStatus::Disabled) {
+                $this->tasks->cancelOpenFor($endpoint, 'endpoint_deactivated');
+            }
+        });
 
         return back()->with('status', $new === EndpointStatus::Disabled
             ? 'Computador desativado: o agente será recusado e os alertas dele serão encerrados.'

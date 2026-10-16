@@ -1,0 +1,9 @@
+{
+  "task_id": "6f1c1d0e-8b7a-4c55-9a3e-2d4f5a6b7c80",
+  "attempt_id": "0b9e6a52-3c1d-4e7f-8a21-9d5c4b3a2f10",
+  "type": "service.restart",
+  "params": { "name": "Spooler" },
+  "timeout_seconds": 60,
+  "lease_expires_at": "2026-10-15T12:01:30+00:00",
+  "risk": "medium"
+}

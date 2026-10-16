@@ -5,11 +5,12 @@ namespace App\Http\Controllers\Api\Agent\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\Agent\HeartbeatRequest;
 use App\Models\AgentInstallation;
+use App\Services\Tasks\TaskService;
 use Illuminate\Http\JsonResponse;
 
 class HeartbeatController extends Controller
 {
-    public function __invoke(HeartbeatRequest $request): JsonResponse
+    public function __invoke(HeartbeatRequest $request, TaskService $tasks): JsonResponse
     {
         /** @var AgentInstallation $installation */
         $installation = $request->attributes->get('agent_installation');
@@ -27,12 +28,12 @@ class HeartbeatController extends Controller
             'ip_addresses' => $data['ip_addresses'] ?? null,
         ], fn ($v) => $v !== null))->save();
 
-        // Tarefas, atualização e config_version ainda não existem (tasks 008/012): respostas honestas.
+        // Atualização e config_version ainda não existem (task 012): respostas honestas.
         return response()->json([
             'server_time' => now()->utc()->toIso8601String(),
             'config_version' => 1,
-            'tasks_available' => false,
-            'cancel_task_ids' => [],
+            'tasks_available' => $tasks->availableFor($installation->endpoint),
+            'cancel_task_ids' => $tasks->cancelRequestedIds($installation->endpoint),
             'update_available' => null,
         ]);
     }

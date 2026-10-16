@@ -6,6 +6,9 @@ use App\Http\Controllers\Api\Agent\V1\InventoryController;
 use App\Http\Controllers\Api\Agent\V1\MetaController;
 use App\Http\Controllers\Api\Agent\V1\MetricsController;
 use App\Http\Controllers\Api\Agent\V1\RotateKeyController;
+use App\Http\Controllers\Api\Agent\V1\TaskNextController;
+use App\Http\Controllers\Api\Agent\V1\TaskProgressController;
+use App\Http\Controllers\Api\Agent\V1\TaskResultController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -22,6 +25,11 @@ Route::prefix('agent/v1')->middleware('throttle:agent-api-preauth')->group(funct
         Route::post('heartbeat', HeartbeatController::class);
         Route::post('keys/rotate', RotateKeyController::class);
         Route::post('metrics', MetricsController::class);
+
+        // Tarefas remotas (task 008). A query de `next` entra na assinatura.
+        Route::get('tasks/next', TaskNextController::class);
+        Route::post('tasks/{uuid}/progress', TaskProgressController::class);
+        Route::post('tasks/{uuid}/result', TaskResultController::class);
     });
 
     // Inventário completo: teto maior (4 MiB), contrato em docs/api/agent-api-v1.md.
