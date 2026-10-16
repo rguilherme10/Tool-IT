@@ -1,6 +1,6 @@
 # Estado do projeto
 
-Atualizado em 2026-10-15 (tarefas remotas tipadas — task 008 — com E2E do Agent real). **Só consta como "concluído" o que foi executado e validado** (evidências em [`test-evidence.md`](test-evidence.md)).
+Atualizado em 2026-10-16 (transferência de arquivos — task 009 — com E2E dos handlers reais contra Manager real). **Só consta como "concluído" o que foi executado e validado** (evidências em [`test-evidence.md`](test-evidence.md)).
 
 ## Fase 1 — Fundação (Manager) ✔
 RBAC por grupo, auditoria encadeada, login + TOTP, API do Agent (enroll, heartbeat, rotação, revogação), painel mínimo. Detalhes e testes no histórico de [`test-evidence.md`](test-evidence.md).
@@ -41,11 +41,25 @@ RBAC por grupo, auditoria encadeada, login + TOTP, API do Agent (enroll, heartbe
 | Concorrência real do claim em MySQL | ❌ não validado | L30 (task 013) |
 | PowerShell | fora deste ciclo | — |
 
+## Fase 3 — Transferência de arquivos (task 009)
+
+| Item | Estado | Observação |
+|---|---|---|
+| Política de diretórios por grupo (herança, sem política = desligado, executáveis sempre bloqueados) + tela `/settings/file-policies` | ✔ | Testes + E2E pela tela; ADR-022; [`manual-admin.md`](manual-admin.md) |
+| `PathGuard` PHP + C# com vetor compartilhado | ✔ | [`api/path-guard.md`](api/path-guard.md); E2E: 28 entradas hostis → 422 |
+| Upload pelo navegador em chunks de 1 MiB, retomável; `TransferService`, estados, auditoria | ✔ | E2E por cliente HTTP real (cookies + CSRF) · ⚠ aba Arquivos não vista em navegador real (L50) |
+| API do Agent (metadados, chunks, `begin`/`complete`, limite `agent-transfer`) | ✔ | E2E + `tests/integration/transfers-smoke.php` (24/24; 130 req sem 429) |
+| Agent: `file.send` / `file.fetch` (handle, `.part`, SHA-256, veto local, junction recusada, revogação no meio) | ✔ handlers reais em processo de teste contra Manager real | ⚠ executável do serviço só provou a falha fechada (sem Administrador as raízes são excluídas) — L43 |
+| Retomada | ✔ upload do navegador; Agent morto → tarefa recolocada → continua do `.part` | ❌ após queda do Manager/rede a transferência falha e o `.part` fica órfão (L49) |
+| Retenção (`transfers:prune`) | ✔ | E2E com `updated_at` recuado no banco de teste |
+| Serviço real como SYSTEM, ACL restrita elevada, UNC, antivírus | ❌ não validado | L43 |
+
 ## Próximos passos (ordem)
 1. **Instalar `ToolitSetup.msi` como Administrador** (interativo e `/qn`), reiniciar o PC, derrubar a rede, atualizar e desinstalar; registrar em `test-evidence.md`.
 2. Validar Manager em MySQL + Redis (Laragon) — L1.
-3. Task 007 lado Agent (serviços monitorados, eventos); validar handlers de serviço e `agent.restart` numa VM com o serviço instalado (L32, L36); depois arquivos (009).
-4. Migrar o Agent para `net10.0` quando o SDK 10 estiver instalado (L2).
+3. Task 007 lado Agent (serviços monitorados, eventos); validar handlers de serviço e `agent.restart` numa VM com o serviço instalado (L32, L36); depois o E2E de transferência com o serviço instalado e ACL elevada (L43).
+4. Decidir a correção da retomada após falha de rede nas transferências (L49).
+5. Migrar o Agent para `net10.0` quando o SDK 10 estiver instalado (L2).
 
 ## Riscos abertos
 Ver [`known-limitations.md`](known-limitations.md).

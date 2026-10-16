@@ -41,6 +41,16 @@ O Agent **recusa** HTTP e certificados não confiáveis. Use um certificado emit
 | Tempo real (task 010) | `php artisan reverb:start` | NSSM |
 *(Fila e Reverb ainda não têm uso; o agendador já é necessário para alertas e retenção.)*
 
+## 5.1 Transferência de arquivos: limites de proxy/PHP e disco (task 009)
+Os arquivos nunca passam inteiros numa requisição: o navegador manda **PUT de 1 MiB** (`/transfers/{uuid}/upload/{n}`, corpo bruto `application/octet-stream`) e o Agent **PUT de até 2 MiB** (`/api/agent/v1/transfers/{id}/chunks/{n}`; o Manager recusa > 2,5 MiB com `413` antes de verificar a assinatura). Portanto o servidor web/PHP precisa aceitar corpos de **pelo menos 3 MiB**:
+- nginx: `client_max_body_size 3m;` (ou maior) no `server` do Manager; o padrão de 1m quebra os chunks do Agent com `413` do próprio nginx.
+- Apache: `LimitRequestBody` ≥ 3145728 (ou 0 = sem limite) se estiver definido.
+- PHP: `post_max_size` ≥ `3M` (folga; os PUTs são lidos de `php://input`) e `memory_limit` com folga para um chunk em memória (128M sobra). `upload_max_filesize` **não** é usado (não há multipart).
+- Disco: `storage/app/private/transfers/` guarda as partes e o arquivo montado (até 2× o tamanho durante a montagem; o envio é recusado se o espaço livre for menor) e os blobs de transferências encerradas por 7 dias (`TOOLIT_TRANSFERS_RETENTION_DAYS`). Sem quota nem alerta de disco (L46): dimensione o volume e monitore-o.
+- Agendador: `transfers:prune` diário às 03:45 apaga partes/blobs vencidos e expira uploads abandonados (24 h); `tasks:expire` (a cada minuto) devolve à fila `file.*` cuja tentativa sumiu (é o que permite retomar).
+- Limite de requisições do Agent nas rotas de transferência: `TOOLIT_TRANSFER_RATE_LIMIT` (padrão 600/min por instalação; separado dos 120/min das demais rotas).
+*Validado só com `php artisan serve` (PHP 8.4, servidor embutido) no E2E de 2026-10-16; nginx/Apache/PHP-FPM reais não foram testados.*
+
 ## 6. Rede
 Firewall: liberar apenas TCP 443 do Manager para a LAN. MySQL e Redis **não** devem ser expostos à rede. DNS: registro A interno para o nome usado no certificado.
 

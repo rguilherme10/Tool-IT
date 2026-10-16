@@ -3,7 +3,7 @@
 Plataforma própria para 50–100 PCs/notebooks Windows em rede corporativa local:
 
 - **Manager** (`manager/`) — Laravel 13: painel web, API do Agent, usuários/RBAC, auditoria.
-- **Agent** (`agent/Toolit/`) — Worker Service Windows em C#/.NET: registro seguro, heartbeat, inventário (hardware, software, rede, periféricos), métricas e tarefas remotas tipadas. Serviço instalado como Windows Service: **ainda não validado** (ver `docs/status.md`).
+- **Agent** (`agent/Toolit/`) — Worker Service Windows em C#/.NET: registro seguro, heartbeat, inventário (hardware, software, rede, periféricos), métricas, tarefas remotas tipadas e transferência de arquivos por política (task 009). Serviço instalado como Windows Service: **ainda não validado** (ver `docs/status.md`).
 
 > Estado real, módulo a módulo: [`docs/status.md`](docs/status.md). Nada é marcado como pronto sem teste executado ([`docs/test-evidence.md`](docs/test-evidence.md)).
 
@@ -47,14 +47,14 @@ php artisan serve
 
 Entre em `http://127.0.0.1:8000`; o administrador será levado a ativar o TOTP antes de usar o painel.
 Para registrar um agente: **Novo agente** no painel (ou `php artisan toolit:enrollment-token --user=voce@empresa.local`).
-Com o Agent real: veja [`agent/README.md`](agent/README.md). Teste do protocolo sem o Agent C#: `php tests/integration/agent-smoke.php http://127.0.0.1:8000 <token>`; ciclo de tarefas: `php tests/integration/tasks-smoke.php http://127.0.0.1:8000 <token>` (pede para criar uma tarefa de baixo risco no painel).
+Com o Agent real: veja [`agent/README.md`](agent/README.md). Teste do protocolo sem o Agent C#: `php tests/integration/agent-smoke.php http://127.0.0.1:8000 <token>`; ciclo de tarefas: `php tests/integration/tasks-smoke.php http://127.0.0.1:8000 <token>` (pede para criar uma tarefa de baixo risco no painel); transferências: `php tests/integration/transfers-smoke.php http://127.0.0.1:8000 <token>` (pede um envio e uma recuperação no painel).
 
 ### Testes
 
 ```bash
-cd manager && php artisan test        # SQLite em memória (571 testes)
+cd manager && php artisan test        # SQLite em memória (1060 testes)
 composer audit && npm audit
-cd ../agent/Toolit && dotnet test Toolit.sln   # 149 testes (inclui leituras reais do Windows); num compartilhamento de rede rode de uma cópia local (L39)
+cd ../agent/Toolit && dotnet test Toolit.sln   # 279 testes (1 E2E ignorado sem TOOLIT_E2E_MANAGER) (inclui leituras reais do Windows); num compartilhamento de rede rode de uma cópia local (L39)
 ```
 
 ## Estrutura do repositório
@@ -82,5 +82,6 @@ tests/      contratos compartilhados (tests/contracts) e testes de integração 
 | [`docs/api/task-types.md`](docs/api/task-types.md) | Catálogo de tarefas remotas (tipos, risco, parâmetros) |
 | [`docs/data-model.md`](docs/data-model.md) | Tabelas, índices, retenção |
 | [`docs/deployment/server.md`](docs/deployment/server.md) | Instalação do servidor (Laragon) |
+| [`docs/manual-admin.md`](docs/manual-admin.md) | Manual do administrador (política de transferência de arquivos) |
 | [`docs/known-limitations.md`](docs/known-limitations.md) | Limitações conhecidas |
 | [`docs/test-evidence.md`](docs/test-evidence.md) | Resultados reais de testes |

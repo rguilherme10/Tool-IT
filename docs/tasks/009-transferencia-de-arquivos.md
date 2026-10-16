@@ -13,7 +13,7 @@ Incluído: transferências em partes (chunks) retomáveis, hash SHA-256 obrigat�
 008.
 
 ## Análise da arquitetura atual
-Tarefas tipadas existentes (008).
+Tarefas tipadas existentes (008). **Implementado (2026-10-16):** política por grupo, `PathGuard` nos dois lados, `TransferService`, rotas do navegador e do Agent, aba Arquivos, handlers `file.send`/`file.fetch` (ADR-022).
 
 ## Arquivos
 Manager: `FileTransfer`, `FileTransferService`, `PathValidator`, storage privado `storage/app/transfers` (fora do webroot), `PruneTransfersJob`. Agent: `Handlers/FileSend|FileFetch`, `PathGuard`.
@@ -46,13 +46,33 @@ Hash divergente (descartar), interrupção (retomar), disco cheio, arquivo em us
 Tabela de caminhos maliciosos (traversal, UNC, ADS, reservados, symlink/junction, Unicode confusables), sobrescrita, hash, retomada, limites, permissões, auditoria, retenção.
 
 ## Aceite
-- [ ] Envio e recuperação reais com hash verificado - [ ] Traversal impossível por teste - [ ] Sem execução automática - [ ] Operador sem permissão recebe 403
+Evidências: `docs/test-evidence.md` §"Transferência de arquivos — E2E (2026-10-16)".
+- [x] Envio e recuperação reais com hash verificado — handlers reais **em processo de teste**, HTTP assinado real, disco real, Manager real: envio 7 940 032 B e recuperação 6 020 657 B com SHA-256 igual nas duas pontas; download com `attachment`/`nosniff`/`no-store`
+- [ ] Envio e recuperação pelo **serviço instalado** (`AgentToolit.exe` como SYSTEM, ACL elevada) — não validado: sem Administrador o exe real excluiu as raízes temporárias e recusou tudo (falha fechada comprovada) — L43
+- [x] Traversal impossível por teste — vetor compartilhado PHP/C# + E2E: 28 entradas hostis → 422; junction plantada na raiz e pasta fora das raízes → `rejected`; linhas forjadas no banco barradas (409/`rejected`); canário fora da raiz intacto
+- [x] Sem execução automática — nenhuma tarefa/rota executa arquivo; extensões executáveis sempre bloqueadas (tela, criação, revalidação e Agent)
+- [x] Operador sem permissão recebe 403 (Auditor/Suporte no envio) e fora do escopo 404 (Operador do grupo B) — testes + E2E
+- [x] Retomada comprovada — upload do navegador (status + `missing_chunks`) e Agent morto no meio (tentativa #2 continuou do chunk 6, hash igual; lease vencida por atalho no banco de teste)
+- [ ] Retomada após **queda do Manager/rede** — não acontece: a transferência falha e o `.part` fica órfão (achado do E2E, L49)
+- [x] Retenção comprovada — `transfers:prune` (com `updated_at` recuado no banco de teste): blobs apagados, metadados com `purged_at`, download passa a 409
+- [ ] UNC real e antivírus real interferindo — não validados (L43)
 
 ## Documentação
-Manual do administrador (política de diretórios), threat model T9.
+[`manual-admin.md`](../manual-admin.md) (política de diretórios), threat model T9, [`deployment/server.md`](../deployment/server.md) §5.1 (limites de proxy/PHP).
 
 ## Riscos
 Arquivos grandes sobre Laragon/Apache (limites `post_max_size`/`upload_max_filesize`): usar chunks e documentar.
 
 ## Checklist
-- [ ] PathValidator - [ ] Envio - [ ] Recuperação - [ ] Retomada - [ ] Retenção - [ ] Testes - [ ] Docs
+- [x] PathValidator (`PathGuard` PHP + C#, vetor `tests/contracts/path-guard-cases.json`, regras em `docs/api/path-guard.md`)
+- [x] Política por grupo + tela `/settings/file-policies` (E2E pela tela, 9 diretórios hostis recusados)
+- [x] Envio (E2E: navegador HTTP → Manager → handler real em processo)
+- [x] Recuperação + download (E2E)
+- [x] Retomada (upload do navegador; Agent morto e tarefa recolocada) · [ ] após queda do Manager (L49)
+- [x] Retenção (`transfers:prune`, E2E com atalho no banco de teste)
+- [x] Revogação no meio cancela a transferência e o Agent para (E2E)
+- [ ] Serviço real como SYSTEM + ACL restrita aplicada (L43)
+- [ ] UNC real, antivírus real (L43)
+- [ ] Aba Arquivos num navegador real (L50)
+- [x] Testes (Manager 1060, Agent 278 + E2E opcional, Node 18, `transfers-smoke.php` 24/24)
+- [x] Docs (`agent-api-v1.md` §transfers, `task-types.md`, `path-guard.md`, modelo de dados, matriz, T9, ADR-022, L42–L50, `manual-admin.md`, `deployment/server.md` §5.1)
