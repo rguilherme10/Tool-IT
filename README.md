@@ -3,7 +3,7 @@
 Plataforma própria para 50–100 PCs/notebooks Windows em rede corporativa local:
 
 - **Manager** (`manager/`) — Laravel 13: painel web, API do Agent, usuários/RBAC, auditoria.
-- **Agent** (`agent/Toolit/`) — Worker Service Windows em C#/.NET: registro seguro, heartbeat, inventário (hardware, software, rede, periféricos) e métricas. Serviço instalado como Windows Service: **ainda não validado** (ver `docs/status.md`).
+- **Agent** (`agent/Toolit/`) — Worker Service Windows em C#/.NET: registro seguro, heartbeat, inventário (hardware, software, rede, periféricos), métricas e tarefas remotas tipadas. Serviço instalado como Windows Service: **ainda não validado** (ver `docs/status.md`).
 
 > Estado real, módulo a módulo: [`docs/status.md`](docs/status.md). Nada é marcado como pronto sem teste executado ([`docs/test-evidence.md`](docs/test-evidence.md)).
 
@@ -17,7 +17,7 @@ Navegador ──HTTPS──► Manager (Laravel + MySQL + Redis) ◄──HTTPS 
 - Identidade do Agent = **par de chaves ECDSA P-256 por instalação**; cada request é **assinado** (sem segredo trafegando), com proteção de replay. Registro por **token de uso único**. Revogação individual e imediata.
 - Autorização **sempre no backend**: RBAC com escopo por grupo de endpoints.
 - Toda ação administrativa gera **auditoria append-only com hash encadeado**.
-- Sem shell livre: tarefas tipadas e auditadas (Fase 3). Tela remota somente leitura (Fase 4).
+- Sem shell livre: tarefas tipadas, aprovadas quando arriscadas e auditadas (task 008, [`docs/api/task-types.md`](docs/api/task-types.md)). Tela remota somente leitura (Fase 4).
 
 Detalhes: [`docs/architecture.md`](docs/architecture.md) · decisões: [`docs/decisions.md`](docs/decisions.md) · ameaças: [`docs/threat-model.md`](docs/threat-model.md).
 
@@ -47,14 +47,14 @@ php artisan serve
 
 Entre em `http://127.0.0.1:8000`; o administrador será levado a ativar o TOTP antes de usar o painel.
 Para registrar um agente: **Novo agente** no painel (ou `php artisan toolit:enrollment-token --user=voce@empresa.local`).
-Com o Agent real: veja [`agent/README.md`](agent/README.md). Teste do protocolo sem o Agent C#: `php tests/integration/agent-smoke.php http://127.0.0.1:8000 <token>`.
+Com o Agent real: veja [`agent/README.md`](agent/README.md). Teste do protocolo sem o Agent C#: `php tests/integration/agent-smoke.php http://127.0.0.1:8000 <token>`; ciclo de tarefas: `php tests/integration/tasks-smoke.php http://127.0.0.1:8000 <token>` (pede para criar uma tarefa de baixo risco no painel).
 
 ### Testes
 
 ```bash
-cd manager && php artisan test        # SQLite em memória (278 testes)
+cd manager && php artisan test        # SQLite em memória (571 testes)
 composer audit && npm audit
-cd ../agent/Toolit && dotnet test Toolit.sln   # 112 testes (inclui leituras reais do Windows)
+cd ../agent/Toolit && dotnet test Toolit.sln   # 149 testes (inclui leituras reais do Windows); num compartilhamento de rede rode de uma cópia local (L39)
 ```
 
 ## Estrutura do repositório
@@ -79,6 +79,7 @@ tests/      contratos compartilhados (tests/contracts) e testes de integração 
 | [`docs/threat-model.md`](docs/threat-model.md) | Ameaças e controles |
 | [`docs/permissions-matrix.md`](docs/permissions-matrix.md) | Papéis × permissões |
 | [`docs/api/agent-api-v1.md`](docs/api/agent-api-v1.md) | Contrato da API do Agent |
+| [`docs/api/task-types.md`](docs/api/task-types.md) | Catálogo de tarefas remotas (tipos, risco, parâmetros) |
 | [`docs/data-model.md`](docs/data-model.md) | Tabelas, índices, retenção |
 | [`docs/deployment/server.md`](docs/deployment/server.md) | Instalação do servidor (Laragon) |
 | [`docs/known-limitations.md`](docs/known-limitations.md) | Limitações conhecidas |

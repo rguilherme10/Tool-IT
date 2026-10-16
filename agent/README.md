@@ -14,7 +14,7 @@ Solução em [`Toolit/Toolit.sln`](Toolit/Toolit.sln) (criada pelo dono do proje
 ```powershell
 cd agent\Toolit
 dotnet build Toolit.sln
-dotnet test Toolit.sln                                     # 112 testes
+dotnet test Toolit.sln                                     # 149 testes
 dotnet test Toolit.sln --filter "Category=WindowsReal" --logger "console;verbosity=detailed"   # leituras reais + tempos
 dotnet publish Toolit\AgentToolit.csproj -c Release -o publish
 ```
@@ -33,7 +33,7 @@ $env:TOOLIT_ENROLLMENT_TOKEN = "tk_..."                       # gerado em "Novo 
 - Chave privada **nunca** sai da máquina; em disco só como blob DPAPI. Token de enrollment nunca é gravado nem logado.
 - Cada request é assinado; nonce e timestamp novos a cada tentativa.
 - Logs passam por redação (tokens, assinaturas, senhas, blobs).
-- Nenhum shell, nenhuma execução de tarefas ainda (task 008). Nada é ocultado: serviço comum do Windows.
+- Nenhum shell: só as tarefas tipadas do catálogo local ([`docs/api/task-types.md`](../docs/api/task-types.md)), validadas de novo no Agent, sobre APIs .NET; processos críticos nunca são encerrados. Nada é ocultado: serviço comum do Windows.
 
 ## Instalação como serviço
 Instalador MSI: projeto `agent/Toolit/ToolitSetup` (ver [`installer/README.md`](../installer/README.md)). Comandos do próprio Agent: `service install --server <url> --token <tk_...>` e `service uninstall` (exigem Administrador; `--dry-run` simula). **Ainda não instalado de verdade como serviço** (L8).

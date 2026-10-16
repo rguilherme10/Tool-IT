@@ -41,8 +41,16 @@ Não implementado: `peripheral_inventory` separado (periféricos ficam em `endpo
 | `alerts` | ✔ | uuid; `status` open/acknowledged/resolved; `active_dedupe` (coluna virtual única enquanto ativo → no máximo 1 alerta ativo por regra+endpoint+volume); `opened_at`, `acknowledged_by/at`, `resolved_at`, `resolved_reason`; retenção `alerts:prune` (padrão 180 dias, 03:30) |
 | `metric_rollups_hourly`, `windows_services`, `process_snapshots`, `endpoint_events` | pendente (task 007/008) | Agregação horária ainda **não** existe: hoje o histórico é só o bruto de 7 dias |
 
-## Tarefas e arquivos (Fase 3)
-`remote_tasks` (uuid, endpoint_id, type, params json, risk, status, requested_by, approved_by, idempotency_key único por (requested_by), expires_at, max_attempts, ...), `remote_task_attempts` (attempt uuid, started/finished, exit_code, stdout/stderr limitados, duration), `file_inventory_policies`, `file_inventory_items`, `file_transfers` (direção, caminho canônico, size, sha256, status, retention_until).
+## Tarefas remotas (Fase 3) ✔ implementado (task 008)
+| Tabela | Colunas-chave | Restrições/Índices |
+|---|---|---|
+| `remote_tasks` | uuid, endpoint_id (FK cascade), `type` (catálogo, [`api/task-types.md`](api/task-types.md)), `params` json, `risk` (low/medium/high), `state` (`pending_approval`, `available`, `running`, `completed`, `failed`, `cancelled`, `expired` — `App\Enums\TaskState`), `created_by`, `approved_by`/`approved_at`, `idempotency_key` (≤ 64), `expires_at` (prazo para ser pega; recomeça na aprovação e no requeue), `cancel_requested_at`, `result_summary` json (status, exit_code, duration_seconds, error/reason), timestamps | uuid único; índices `(endpoint_id, state)`, `(state, expires_at)`; único `(created_by, idempotency_key)` |
+| `remote_task_attempts` | uuid, remote_task_id (FK cascade), `number`, `claimed_at`, `lease_expires_at`, `started_at`/`finished_at` (informados pelo Agent, informativos), `status` (nulo enquanto aberto; completed/failed/rejected/cancelled/expired), `exit_code`, `stdout`/`stderr` (text, ≤ 16 KiB após sanitização), `truncated`, `error` (≤ 255) | uuid único; único `(remote_task_id, number)` |
+
+Transições só pelo `TaskService` com UPDATE condicional no estado (ver ADR-021); máximo de tentativas e timeout vêm do catálogo (não são colunas). **Retenção: nenhuma ainda** — tarefas e attempts (com a saída) crescem sem limpeza automática (L40).
+
+## Arquivos (Fase 3)
+`file_inventory_policies`, `file_inventory_items`, `file_transfers` (direção, caminho canônico, size, sha256, status, retention_until) — pendente (task 009).
 
 ## Suporte remoto e versões (Fase 4/5)
 `remote_sessions` (operator, endpoint, status, started/ended, end_reason, quality, ws token hash, expires_at), `agent_versions` (version, sha256, signature, channel, mandatory), `agent_update_jobs`.
@@ -58,4 +66,5 @@ Não implementado: `peripheral_inventory` separado (periféricos ficam em `endpo
 | audit_logs | 24 meses (min. 12) | `audit:archive` privilegiado, auditado |
 | file transfers temp | 7 d | job |
 | remote_sessions metadados | 24 meses | job |
+| remote_tasks / remote_task_attempts | **sem retenção definida** (não implementado) | — (L40) |
 Todas configuráveis em `system_settings` (`retention.*`).
