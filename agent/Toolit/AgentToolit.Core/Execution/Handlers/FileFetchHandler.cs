@@ -14,14 +14,14 @@ namespace AgentToolit.Core.Execution.Handlers;
 /// TODOS os bytes, e <c>complete</c>.
 /// </summary>
 public sealed class FileFetchHandler(
-    ITransferApi api, AgentSettings settings, TimeProvider time, AgentRuntime runtime, ILogger<FileFetchHandler> logger)
-    : TransferHandlerBase(api, settings, time, runtime, logger)
+    ITransferApi api, AgentSettings settings, TimeProvider time, AgentRuntime runtime, TransferRootRegistry roots, ILogger<FileFetchHandler> logger)
+    : TransferHandlerBase(api, settings, time, runtime, roots, logger)
 {
     public override string Type => "file.fetch";
 
     protected override string Direction => TransferProtocol.Fetch;
 
-    protected override IReadOnlyList<string> Roots(AgentSettings s, ILogger l) => TransferRootSetup.FetchRoots(s, l);
+    protected override IReadOnlyList<string> RootsFor(TransferRootRegistry registry) => registry.FetchRoots;
 
     protected override async Task<TaskOutcome> RunAsync(string id, TransferInfo info, IReadOnlyList<string> roots, ProgressReporter progress, CancellationToken ct)
     {

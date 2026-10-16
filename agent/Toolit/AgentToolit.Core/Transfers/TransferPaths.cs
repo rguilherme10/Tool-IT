@@ -37,6 +37,12 @@ public static class TransferPaths
 
             return null;
         }
+        if (name.StartsWith(".toolit-", StringComparison.OrdinalIgnoreCase))
+        {
+            error = "Nome de arquivo reservado para arquivos parciais de transferência.";
+
+            return null;
+        }
         if (blockExtensions && PathGuard.HasBlockedExtension(name))
         {
             error = "Extensão de arquivo bloqueada (executáveis e scripts nunca são transferidos).";

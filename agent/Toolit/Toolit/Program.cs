@@ -109,6 +109,9 @@ builder.Services.AddSingleton<ITaskHandler, AgentRestartHandler>();
 // Transferência de arquivos: metadados e chunks pelas rotas assinadas; caminhos só pelo PathGuard.
 builder.Services.AddSingleton<ITransferApi>(sp => sp.GetRequiredService<ManagerClient>());
 builder.Services.AddSingleton<IDiskSpace, SystemDiskSpace>();
+// Raízes seguras calculadas UMA vez (ACL e conferência pelo handle); os handlers usam só este registro.
+builder.Services.AddSingleton(sp => TransferRootRegistry.Build(
+    sp.GetRequiredService<AgentSettings>(), sp.GetRequiredService<ILoggerFactory>().CreateLogger("AgentToolit.Transfers")));
 builder.Services.AddSingleton<ITaskHandler, FileSendHandler>();
 builder.Services.AddSingleton<ITaskHandler, FileFetchHandler>();
 builder.Services.AddSingleton<ITaskProgressSink, ManagerProgressSink>();
@@ -144,15 +147,22 @@ if (!PathGuard.NormalizationAvailable)
         .LogWarning("Normalização Unicode indisponível neste sistema: transferências de arquivo serão recusadas.");
 }
 
-// Raízes de transferência: cria as que faltam com ACL só SYSTEM/Administradores (quando elevado). Nunca derruba o serviço.
-try
+// Raízes de transferência: restringe a pasta-mãe e calcula o registro de raízes seguras (ACL só SYSTEM/Administradores,
+// aplicada e conferida pelo handle quando elevado). Nunca derruba o serviço.
 {
-    TransferRootSetup.Prepare(settings, host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("AgentToolit.Transfers"));
-}
-catch (Exception ex)
-{
-    host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("AgentToolit.Transfers")
-        .LogError(ex, "Falha ao preparar as pastas de transferência.");
+    var transferLogger = host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("AgentToolit.Transfers");
+    try
+    {
+        TransferRootRegistry.RestrictParent(
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Toolit"), transferLogger);
+        var registry = host.Services.GetRequiredService<TransferRootRegistry>();   // dispara o Build (log das raízes)
+        transferLogger.LogInformation("Transferências: {Send} raiz(es) de envio, {Fetch} de recuperação ativas.",
+            registry.SendRoots.Count, registry.FetchRoots.Count);
+    }
+    catch (Exception ex)
+    {
+        transferLogger.LogError(ex, "Falha ao preparar as pastas de transferência.");
+    }
 }
 
 await host.RunAsync();

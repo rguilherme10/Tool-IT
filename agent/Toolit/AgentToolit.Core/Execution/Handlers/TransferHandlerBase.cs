@@ -14,7 +14,7 @@ namespace AgentToolit.Core.Execution.Handlers;
 /// failed e o Manager repete a tarefa idempotente). Cancelamento → cancelled.
 /// Logs: só o id da transferência e o nome do arquivo (nunca o caminho completo vindo do Manager).
 /// </summary>
-public abstract class TransferHandlerBase(ITransferApi api, AgentSettings settings, TimeProvider time, AgentRuntime runtime, ILogger logger)
+public abstract class TransferHandlerBase(ITransferApi api, AgentSettings settings, TimeProvider time, AgentRuntime runtime, TransferRootRegistry rootRegistry, ILogger logger)
     : IContextTaskHandler
 {
     /// <summary>Folga de progresso: envia ao mudar o percentual ou, sem mudança, a cada 15 s.</summary>
@@ -41,10 +41,10 @@ public abstract class TransferHandlerBase(ITransferApi api, AgentSettings settin
             return TaskOutcome.Rejected(PathGuard.Message(PathGuard.NormalizationUnavailable));
         }
 
-        var roots = Roots(settings, logger);
+        var roots = RootsFor(rootRegistry);
         if (roots.Count == 0)
         {
-            return TaskOutcome.Rejected("Transferências desligadas neste computador (nenhuma pasta permitida configurada).");
+            return TaskOutcome.Rejected("Transferências desligadas neste computador (nenhuma pasta permitida ou segura configurada).");
         }
 
         var id = parameters.ValueKind == JsonValueKind.Object && parameters.TryGetProperty("transfer_id", out var raw)
@@ -108,8 +108,8 @@ public abstract class TransferHandlerBase(ITransferApi api, AgentSettings settin
         }
     }
 
-    /// <summary>Raízes desta direção (inválidas ignoradas e registradas uma vez).</summary>
-    protected abstract IReadOnlyList<string> Roots(AgentSettings settings, ILogger logger);
+    /// <summary>Raízes seguras desta direção, do registro fixo calculado na subida.</summary>
+    protected abstract IReadOnlyList<string> RootsFor(TransferRootRegistry registry);
 
     /// <summary>A transferência propriamente dita (metadados já conferidos).</summary>
     protected abstract Task<TaskOutcome> RunAsync(string id, TransferInfo info, IReadOnlyList<string> roots, ProgressReporter progress, CancellationToken ct);

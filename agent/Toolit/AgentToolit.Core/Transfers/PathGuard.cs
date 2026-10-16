@@ -74,6 +74,7 @@ public static class PathGuard
         ["exists"] = "O arquivo já existe.",
         ["not_found"] = "O arquivo ou a pasta não existe.",
         ["open_failed"] = "Não foi possível abrir o arquivo.",
+        ["rename_failed"] = "Não foi possível renomear o arquivo para o destino.",
     };
 
     /// <summary>Código de recusa quando NFC/NFKC não funcionam (ex.: globalização invariante).</summary>
@@ -85,6 +86,9 @@ public static class PathGuard
 
     /// <summary>Gancho de teste: chamado entre a checagem de disco e a abertura em <see cref="OpenChecked"/>.</summary>
     internal static readonly AsyncLocal<Action<string>?> BeforeOpenForTests = new();
+
+    /// <summary>Gancho de teste: chamado no início de <see cref="RenameByHandle"/>, antes de abrir o handle do diretório.</summary>
+    internal static readonly AsyncLocal<Action<string>?> BeforeRenameForTests = new();
 
     /// <summary>
     /// NFC/NFKC realmente funcionam neste processo? Com globalização invariante (ou sem ICU/NLS) Normalize vira no-op
@@ -390,8 +394,10 @@ public static class PathGuard
 
         var (access, share, disposition) = intent switch
         {
-            FileOpenIntent.CreateNew => (GenericWrite | DeleteAccess, 0u, CreateNewDisposition),
-            FileOpenIntent.AppendExisting => (GenericWrite, 0u, OpenExistingDisposition),
+            // Leitura + escrita + DELETE para o .part: o handle fica aberto durante toda a transferência e é o único
+            // jeito de ler (hash), renomear (FileRenameInfo) e apagar (FileDispositionInfo) sem reabrir por caminho (TOCTOU).
+            FileOpenIntent.CreateNew => (GenericRead | GenericWrite | DeleteAccess, 0u, CreateNewDisposition),
+            FileOpenIntent.AppendExisting => (GenericRead | GenericWrite | DeleteAccess, 0u, OpenExistingDisposition),
             FileOpenIntent.ReadExisting => (GenericRead, FileShareRead, OpenExistingDisposition),
             _ => throw new ArgumentOutOfRangeException(nameof(intent)),
         };
@@ -423,17 +429,11 @@ public static class PathGuard
 
         if (problem is not null)
         {
-            if (created)
+            if (created && !DeleteByHandle(handle))
             {
-                // Criamos o arquivo agora e ele está fora da raiz: apaga pelo próprio handle (não por caminho, que
-                // pode já apontar para outro lugar).
-                var info = new FileDispositionInfo { DeleteFile = true };
-                if (!SetFileInformationByHandle(handle, FileDispositionInfoClass, ref info, (uint)Marshal.SizeOf<FileDispositionInfo>()))
-                {
-                    // Não conseguimos desfazer: um arquivo vazio pode ter ficado fora da raiz. Código próprio para o
-                    // chamador registrar (nunca tentamos apagar por caminho).
-                    problem = "reparse_race_cleanup_failed";
-                }
+                // Criamos o arquivo agora e ele está fora da raiz, mas não conseguimos desfazer pelo handle: um arquivo
+                // vazio pode ter ficado fora da raiz. Código próprio para o chamador registrar (nunca apagamos por caminho).
+                problem = "reparse_race_cleanup_failed";
             }
             handle.Dispose();
             error = problem;
@@ -443,7 +443,7 @@ public static class PathGuard
 
         try
         {
-            var stream = new FileStream(handle, intent == FileOpenIntent.ReadExisting ? FileAccess.Read : FileAccess.Write);
+            var stream = new FileStream(handle, intent == FileOpenIntent.ReadExisting ? FileAccess.Read : FileAccess.ReadWrite);
             if (intent == FileOpenIntent.AppendExisting)
             {
                 stream.Seek(0, SeekOrigin.End);
@@ -458,6 +458,119 @@ public static class PathGuard
             error = "open_failed";
 
             return null;
+        }
+    }
+
+    /// <summary>
+    /// Apaga o arquivo PELO HANDLE (FileDispositionInfo), nunca por caminho — imune a troca do caminho por link no meio.
+    /// O handle precisa ter sido aberto com acesso DELETE (todo <see cref="OpenChecked"/> de escrita pede). Devolve
+    /// false se o Windows recusou.
+    /// </summary>
+    public static bool DeleteByHandle(SafeFileHandle handle)
+    {
+        if (handle is null || handle.IsInvalid || handle.IsClosed)
+        {
+            return false;
+        }
+        var info = new FileDispositionInfo { DeleteFile = true };
+
+        return SetFileInformationByHandle(handle, FileDispositionInfoClass, ref info, (uint)Marshal.SizeOf<FileDispositionInfo>());
+    }
+
+    /// <summary>
+    /// Renomeia o arquivo aberto (<paramref name="fileHandle"/>, com acesso DELETE) para <paramref name="bareName"/>
+    /// DENTRO de <paramref name="destinationDir"/>, de forma imune a TOCTOU: abre um handle de DIRETÓRIO
+    /// (FILE_FLAG_BACKUP_SEMANTICS | FILE_FLAG_OPEN_REPARSE_POINT, SQOS anônimo), recusa reparse point, confere o
+    /// caminho real do diretório contra <paramref name="roots"/> e então renomeia via FILE_RENAME_INFO com
+    /// <c>RootDirectory</c> = esse handle e um nome NU (sem caminho). <paramref name="replaceExisting"/> só quando o
+    /// chamador já validou o destino. Devolve null em sucesso, ou um código de motivo (texto em <see cref="Message"/>:
+    /// "reparse_point", "outside_roots", "unc", "not_found", "open_failed", "final_path_unavailable", "disk_check_failed",
+    /// "rename_failed", "separator", "handle_closed", "normalization_unavailable"). Em falha o destino antigo fica intacto.
+    /// </summary>
+    public static string? RenameByHandle(SafeFileHandle fileHandle, string destinationDir, string bareName, bool replaceExisting, IReadOnlyList<string> roots)
+    {
+        if (!NormalizationAvailable)
+        {
+            return NormalizationUnavailable;
+        }
+        if (fileHandle is null || fileHandle.IsInvalid || fileHandle.IsClosed)
+        {
+            return "handle_closed";
+        }
+        if (string.IsNullOrEmpty(bareName) || bareName.Contains('\\') || bareName.Contains('/'))
+        {
+            return "separator";
+        }
+
+        BeforeRenameForTests.Value?.Invoke(destinationDir);
+
+        // Handle do diretório de destino aberto com compartilhamento SEM delete: enquanto está aberto, a pasta não pode
+        // ser renomeada/apagada/trocada por uma junction (fecha a janela TOCTOU do leaf). Segue links (sem OPEN_REPARSE_POINT):
+        // se um componente for link, o caminho real (GetFinalPathNameByHandle) cai fora das raízes e é recusado.
+        var dirHandle = CreateFileW(destinationDir, FileListDirectory, FileShareReadWrite, IntPtr.Zero, OpenExistingDisposition, DirOpenFlags, IntPtr.Zero);
+        if (dirHandle.IsInvalid)
+        {
+            var win32 = Marshal.GetLastWin32Error();
+            dirHandle.Dispose();
+
+            return win32 is ErrorFileNotFound or ErrorPathNotFound ? "not_found" : "open_failed";
+        }
+
+        using (dirHandle)
+        {
+            if (!GetFileInformationByHandle(dirHandle, out var info))
+            {
+                return "disk_check_failed";
+            }
+            if ((info.FileAttributes & FileAttributeReparsePoint) != 0)
+            {
+                return "reparse_point";
+            }
+
+            var final = FinalPath(dirHandle);
+            if (final is null)
+            {
+                return "final_path_unavailable";
+            }
+            if (final.StartsWith(@"\\?\UNC\", StringComparison.OrdinalIgnoreCase))
+            {
+                return "unc";
+            }
+            if (final.StartsWith(@"\\?\", StringComparison.Ordinal))
+            {
+                final = final[4..];
+            }
+            if (!IsInside(final, UsableRoots(roots)))
+            {
+                return "outside_roots";
+            }
+
+            // Renomeia para o caminho real do diretório fixado pelo handle + nome nu (RootDirectory=0).
+            var fullTarget = (final.EndsWith('\\') ? final : final + "\\") + bareName;
+
+            return RenameToPath(fileHandle, fullTarget, replaceExisting) ? null : "rename_failed";
+        }
+    }
+
+    /// <summary>FILE_RENAME_INFO (classe 3) com RootDirectory=0 e caminho completo; layout por tamanho de ponteiro.</summary>
+    private static bool RenameToPath(SafeFileHandle fileHandle, string fullPath, bool replaceExisting)
+    {
+        var nameBytes = Encoding.Unicode.GetBytes(fullPath);
+        var lengthOffset = (IntPtr.Size == 8 ? 8 : 4) + IntPtr.Size;   // união(4)+pad → RootDirectory → FileNameLength
+        var nameOffset = lengthOffset + 4;
+        var buffer = new byte[nameOffset + nameBytes.Length + 2];       // + terminador WCHAR nulo
+        buffer[0] = (byte)(replaceExisting ? 1 : 0);                    // ReplaceIfExists; RootDirectory fica zero
+        BitConverter.TryWriteBytes(buffer.AsSpan(lengthOffset, 4), nameBytes.Length);   // em bytes, sem terminador
+        nameBytes.CopyTo(buffer, nameOffset);
+
+        var pinned = GCHandle.Alloc(buffer, GCHandleType.Pinned);
+        try
+        {
+            return SetFileInformationByHandleRaw(fileHandle, FileRenameInfoClass, pinned.AddrOfPinnedObject(), (uint)buffer.Length);
+        }
+        finally
+        {
+            pinned.Free();
         }
     }
 
@@ -581,6 +694,18 @@ public static class PathGuard
     /// </summary>
     internal const uint OpenFlags = FileAttributeNormal | SecuritySqosPresent | SecurityAnonymous;
     private const int FileDispositionInfoClass = 4;
+    private const int FileRenameInfoClass = 3;
+    private const uint FileListDirectory = 0x1;   // FILE_LIST_DIRECTORY
+    private const uint FileShareReadWrite = 0x3;   // read|write SEM delete: fixa o diretório contra troca durante o rename
+    private const uint FileAttributeReparsePoint = 0x400;
+    private const uint FileFlagBackupSemantics = 0x02000000;
+
+    /// <summary>
+    /// Abertura do handle de DIRETÓRIO de destino no rename. SEM OPEN_REPARSE_POINT: se um componente for link, o open
+    /// o SEGUE e o caminho real do handle (GetFinalPathNameByHandle) cai fora das raízes → recusado. Aberto com
+    /// compartilhamento sem delete (<see cref="FileShareReadWrite"/>), o diretório fica fixado contra troca durante o rename.
+    /// </summary>
+    private const uint DirOpenFlags = FileFlagBackupSemantics | SecuritySqosPresent | SecurityAnonymous;
     private const int ErrorFileNotFound = 2;
     private const int ErrorPathNotFound = 3;
     private const int ErrorFileExists = 80;
@@ -614,6 +739,10 @@ public static class PathGuard
     [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool SetFileInformationByHandle(SafeFileHandle hFile, int fileInformationClass, ref FileDispositionInfo info, uint size);
+
+    [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true, EntryPoint = "SetFileInformationByHandle")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetFileInformationByHandleRaw(SafeFileHandle hFile, int fileInformationClass, IntPtr info, uint size);
 
     [DllImport("kernel32.dll", SetLastError = true, ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

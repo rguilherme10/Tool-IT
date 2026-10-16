@@ -10,6 +10,8 @@ using AgentToolit.Core.Execution.Handlers;
 using AgentToolit.Core.Net;
 using AgentToolit.Core.Transfers;
 using AgentToolit.Tests.Support;
+using Microsoft.Extensions.Logging;
+using Microsoft.Win32.SafeHandles;
 using Microsoft.Extensions.Logging.Abstractions;
 using Xunit.Abstractions;
 
@@ -49,11 +51,16 @@ public class FileHandlersTests(ITestOutputHelper output)
             Runtime.SetEnrolled(new AgentState { AgentId = "11111111-2222-4333-8444-555555555555", EndpointId = EndpointId, EnrolledAt = DateTimeOffset.UtcNow });
         }
 
+        /// <summary>Registro construído explicitamente das raízes das settings (sem conferência de ACL: temporários do teste).</summary>
+        public TransferRootRegistry Registry() => new(
+            PathGuard.UsableRoots(Settings.TransferRoots).ToList(),
+            PathGuard.UsableRoots(Settings.TransferRoots.Concat(Settings.TransferFetchOnlyRoots)).ToList());
+
         public FileSendHandler Send() =>
-            new(Api, Settings, TimeProvider.System, Runtime, Disk, NullLogger<FileSendHandler>.Instance);
+            new(Api, Settings, TimeProvider.System, Runtime, Registry(), Disk, NullLogger<FileSendHandler>.Instance);
 
         public FileFetchHandler Fetch() =>
-            new(Api, Settings, TimeProvider.System, Runtime, NullLogger<FileFetchHandler>.Instance);
+            new(Api, Settings, TimeProvider.System, Runtime, Registry(), NullLogger<FileFetchHandler>.Instance);
 
         public TaskContext Context() => new("6f1c1d0e-8b7a-4c55-9a3e-2d4f5a6b7c80", "0b9e6a52-3c1d-4e7f-8a21-9d5c4b3a2f10", (p, _) =>
         {
@@ -700,6 +707,208 @@ public class FileHandlersTests(ITestOutputHelper output)
         Assert.True(File.Exists(final));
     }
 
+    [Fact]
+    public async Task Send_full_part_with_non_multiple_size_skips_download_and_renames()
+    {
+        // Finding 2: size não múltiplo do chunk; .part já completo não rebaixa o último chunk nem queima a tentativa.
+        using var f = new Fixture();
+        var final = Path.Combine(f.Root, "a.txt");
+        var content = Bytes("0123456789");   // 10 bytes, chunk 4
+        f.SetupSend(final, content);
+        File.WriteAllBytes(Fixture.PartPath(f.Root), content);   // .part já tem o arquivo todo
+
+        var outcome = await f.RunSend();
+
+        Assert.Equal(TaskResultStatus.Completed, outcome.Status);
+        Assert.Empty(f.Api.ChunkRequests);   // nada rebaixado
+        Assert.Equal(content, File.ReadAllBytes(final));
+        Assert.False(File.Exists(Fixture.PartPath(f.Root)));
+        Assert.Equal([(Hex(content), 10L)], f.Api.Completes);
+    }
+
+    [Fact]
+    public async Task Send_part_longer_than_size_is_discarded_and_restarted()
+    {
+        using var f = new Fixture();
+        var final = Path.Combine(f.Root, "a.txt");
+        f.SetupSend(final, Bytes("0123456789"));
+        File.WriteAllBytes(Fixture.PartPath(f.Root), Bytes("0123456789ABCD"));   // 14 > 10
+
+        var outcome = await f.RunSend();
+
+        Assert.Equal(TaskResultStatus.Completed, outcome.Status);
+        Assert.Equal([0, 1, 2], f.Api.ChunkRequests);
+        Assert.Equal(Bytes("0123456789"), File.ReadAllBytes(final));
+    }
+
+    [Fact]
+    public async Task Send_of_a_reserved_toolit_name_is_rejected()
+    {
+        // m2: nomes .toolit-* são reservados para arquivos parciais.
+        using var f = new Fixture();
+        f.SetupSend(Path.Combine(f.Root, ".toolit-evil.txt"), Bytes("0123"));
+
+        var outcome = await f.RunSend();
+
+        Assert.Equal(TaskResultStatus.Rejected, outcome.Status);
+        Assert.Contains("reservado", outcome.Error);
+        AssertEmpty(f.Root);
+    }
+
+    [Fact]
+    public async Task Send_keeps_the_part_on_a_non_cancellation_timeout()
+    {
+        // m1: TaskCanceledException que NÃO vem do ct (timeout de HttpClient) mantém o .part para retomar.
+        using var f = new Fixture();
+        f.SetupSend(Path.Combine(f.Root, "a.txt"), Bytes("0123456789"));
+        f.Api.ChunkError = n => n == 2 ? new TaskCanceledException("timeout de HttpClient") : null;
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => f.RunSend());
+
+        Assert.Equal(8, new FileInfo(Fixture.PartPath(f.Root)).Length);   // 2 chunks preservados
+    }
+
+    [Fact]
+    public async Task Send_rename_is_blocked_when_the_destination_dir_is_swapped_for_a_junction()
+    {
+        // Finding 1: troca da pasta de destino por junction ANTES do rename. O .part fica aberto na pasta (bloqueia a
+        // troca) e o RenameByHandle recusa reparse point: o arquivo não escapa e a pasta de fora continua vazia.
+        using var f = new Fixture();
+        var sub = Path.Combine(f.Root, "sub");
+        Directory.CreateDirectory(sub);
+        var final = Path.Combine(sub, "a.txt");
+        f.SetupSend(final, Bytes("0123456789"));
+
+        var attempted = false;
+        PathGuard.BeforeRenameForTests.Value = dir =>
+        {
+            attempted = true;
+            try
+            {
+                // tenta trocar a pasta de destino por uma junction para fora (deve falhar: o .part está aberto nela)
+                Directory.Move(sub, Path.Combine(f.Root, "sub-moved"));
+                PathGuardTests.CreateDirectoryLink(sub, f.Outside);
+            }
+            catch (IOException)
+            {
+                // esperado: pasta com handle aberto não pode ser movida
+            }
+        };
+
+        TaskOutcome outcome;
+        try
+        {
+            outcome = await f.RunSend();
+        }
+        finally
+        {
+            PathGuard.BeforeRenameForTests.Value = null;
+            if (Directory.Exists(Path.Combine(f.Root, "sub-moved")))
+            {
+                if (new DirectoryInfo(sub).Attributes.HasFlag(FileAttributes.ReparsePoint))
+                {
+                    Directory.Delete(sub);
+                }
+            }
+        }
+
+        Assert.True(attempted);
+        AssertEmpty(f.Outside);   // nada escapou para fora
+        if (outcome.Status == TaskResultStatus.Completed)
+        {
+            Assert.Equal(Bytes("0123456789"), File.ReadAllBytes(final));   // ou a troca falhou e o arquivo ficou no lugar certo
+        }
+        else
+        {
+            Assert.Equal(TaskResultStatus.Rejected, outcome.Status);   // ou o rename recusou o reparse
+        }
+    }
+
+    // ---------------------------------------------------------------- PathGuard.RenameByHandle
+
+    [Fact]
+    public void Rename_by_handle_moves_the_part_into_the_destination()
+    {
+        using var f = new Fixture();
+        var part = Fixture.PartPath(f.Root);
+        File.WriteAllBytes(part, Bytes("conteudo"));
+        using (var stream = PathGuard.OpenChecked(part, FileOpenIntent.AppendExisting, [f.Root], out var code))
+        {
+            Assert.NotNull(stream);
+            Assert.Null(PathGuard.RenameByHandle(stream!.SafeFileHandle, f.Root, "final.txt", replaceExisting: false, [f.Root]));
+        }
+
+        Assert.False(File.Exists(part));
+        Assert.Equal(Bytes("conteudo"), File.ReadAllBytes(Path.Combine(f.Root, "final.txt")));
+    }
+
+    [Fact]
+    public void Rename_by_handle_replace_rules()
+    {
+        using var f = new Fixture();
+        var final = Path.Combine(f.Root, "final.txt");
+        File.WriteAllBytes(final, Bytes("antigo"));
+
+        // replaceExisting=false com destino existente: falha e o antigo fica intacto; o .part permanece.
+        var part1 = Fixture.PartPath(f.Root);
+        File.WriteAllBytes(part1, Bytes("novo-a"));
+        using (var s = PathGuard.OpenChecked(part1, FileOpenIntent.AppendExisting, [f.Root], out _))
+        {
+            Assert.Equal("rename_failed", PathGuard.RenameByHandle(s!.SafeFileHandle, f.Root, "final.txt", false, [f.Root]));
+        }
+        Assert.Equal(Bytes("antigo"), File.ReadAllBytes(final));
+        File.Delete(part1);
+
+        // replaceExisting=true: substitui e mantém o novo conteúdo.
+        var part2 = Path.Combine(f.Root, ".toolit-x.part");
+        File.WriteAllBytes(part2, Bytes("novo-b"));
+        using (var s = PathGuard.OpenChecked(part2, FileOpenIntent.AppendExisting, [f.Root], out _))
+        {
+            Assert.Null(PathGuard.RenameByHandle(s!.SafeFileHandle, f.Root, "final.txt", true, [f.Root]));
+        }
+        Assert.Equal(Bytes("novo-b"), File.ReadAllBytes(final));
+    }
+
+    [Fact]
+    public void Rename_by_handle_refuses_a_junction_destination_and_leaves_the_outside_empty()
+    {
+        using var f = new Fixture();
+        var part = Fixture.PartPath(f.Root);
+        File.WriteAllBytes(part, Bytes("conteudo"));
+        var linkDir = Path.Combine(f.Root, "linkdir");
+        PathGuardTests.CreateDirectoryLink(linkDir, f.Outside);
+
+        try
+        {
+            using var stream = PathGuard.OpenChecked(part, FileOpenIntent.AppendExisting, [f.Root], out _);
+            var error = PathGuard.RenameByHandle(stream!.SafeFileHandle, linkDir, "escapou.txt", false, [f.Root]);
+            // O handle de diretório segue o link (sem OPEN_REPARSE_POINT) e o caminho real cai fora das raízes.
+            Assert.Equal("outside_roots", error);
+        }
+        finally
+        {
+            Directory.Delete(linkDir);   // só o link
+        }
+
+        AssertEmpty(f.Outside);
+        Assert.True(File.Exists(part));   // o .part não foi renomeado
+    }
+
+    [Fact]
+    public void Delete_by_handle_removes_the_file()
+    {
+        using var f = new Fixture();
+        var part = Fixture.PartPath(f.Root);
+        File.WriteAllBytes(part, Bytes("x"));
+        using (var stream = PathGuard.OpenChecked(part, FileOpenIntent.AppendExisting, [f.Root], out _))
+        {
+            Assert.True(PathGuard.DeleteByHandle(stream!.SafeFileHandle));
+        }
+
+        Assert.False(File.Exists(part));
+        AssertEmpty(f.Root);
+    }
+
     // ---------------------------------------------------------------- file.fetch
 
     [Fact]
@@ -939,50 +1148,113 @@ public class FileHandlersTests(ITestOutputHelper output)
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => throttle.WaitAsync(10 * 1024 * 1024, cts.Token));
     }
 
-    // ---------------------------------------------------------------- raízes e ACL
+    // ---------------------------------------------------------------- raízes seguras (registro) e ACL por handle
 
-    [Fact]
-    public void Root_helper_creates_the_directory_with_a_restricted_acl_when_elevated()
+    /// <summary>Marca <paramref name="trusted"/> como temporário confiável durante <paramref name="body"/> (dispensa a conferência num processo não elevado).</summary>
+    private static TransferRootRegistry BuildTrusted(AgentSettings settings, string trusted, ILogger logger)
     {
-        using var dir = new TempDir();
-        var root = Path.Combine(dir.Path, "Inbox");
-
-        var applied = TransferRootSetup.CreateRestricted(root);
-
-        Assert.True(Directory.Exists(root));
-        Assert.Equal(AgentPaths.IsElevated(), applied);
-        if (!applied)
+        TransferRootRegistry.TrustedRootsForTests.Value = [trusted];
+        try
         {
-            output.WriteLine("Sessão NÃO elevada: a ACL restrita não foi aplicada nem conferida neste ambiente (só a criação da pasta).");
-
-            return;
+            return TransferRootRegistry.Build(settings, logger, ownBase: trusted);
         }
-
-        var security = new DirectoryInfo(root).GetAccessControl();
-        Assert.True(security.AreAccessRulesProtected);   // sem herança do pai
-        var sids = security.GetAccessRules(true, true, typeof(SecurityIdentifier)).Cast<FileSystemAccessRule>()
-            .Select(r => ((SecurityIdentifier)r.IdentityReference).Value).Distinct().Order().ToList();
-        Assert.Equal(new[]
+        finally
         {
-            new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null).Value,
-            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null).Value,
-        }.Order(), sids);
+            TransferRootRegistry.TrustedRootsForTests.Value = null;
+        }
     }
 
     [Fact]
-    public void Prepare_creates_missing_roots_and_skips_invalid_ones()
+    public void Registry_excludes_a_root_that_fails_preparation()
     {
         using var dir = new TempDir();
         var inbox = Path.Combine(dir.Path, "Inbox");
-        var logs = Path.Combine(dir.Path, "Logs");
-        var settings = new AgentSettings { TransferRoots = [inbox, "relativo"], TransferFetchOnlyRoots = [logs] };
+        Directory.CreateDirectory(inbox);
+        // Raiz que falha a sintaxe de disco (não canônica) é filtrada em UsableRoots antes; aqui uma relativa (ignorada)
+        // e uma inexistente sob a base confiável (criada). Só a válida entra.
+        var settings = new AgentSettings { TransferRoots = [inbox, "relativo\\x"], TransferFetchOnlyRoots = [] };
 
-        var prepared = TransferRootSetup.Prepare(settings, NullLogger.Instance, ownBase: dir.Path);
+        var registry = BuildTrusted(settings, dir.Path, NullLogger.Instance);
 
-        Assert.True(Directory.Exists(inbox));
-        Assert.True(Directory.Exists(logs));
-        Assert.Equal([inbox, logs], prepared);
+        Assert.Equal([inbox], registry.SendRoots);
+        Assert.Equal([inbox], registry.FetchRoots);
     }
+
+    [Fact]
+    public void Registry_excludes_a_root_writable_by_normal_users()
+    {
+        if (AgentPaths.IsElevated())
+        {
+            output.WriteLine("Processo elevado: este teste não usa o seam de confiança; a conferência real roda.");
+        }
+        using var dir = new TempDir();
+        var inbox = Path.Combine(dir.Path, "Inbox");
+        Directory.CreateDirectory(inbox);
+
+        // Concede escrita a "Usuários" na raiz; o ambiente precisa permitir ACL (senão falha explícita).
+        try
+        {
+            var security = new DirectoryInfo(inbox).GetAccessControl();
+            security.AddAccessRule(new FileSystemAccessRule(
+                new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null), FileSystemRights.Write,
+                InheritanceFlags.None, PropagationFlags.None, AccessControlType.Allow));
+            new DirectoryInfo(inbox).SetAccessControl(security);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or InvalidOperationException or PrivilegeNotHeldException)
+        {
+            Assert.Fail("O ambiente não permitiu gravar a ACL de teste: " + ex.Message);
+        }
+
+        var settings = new AgentSettings { TransferRoots = [inbox], TransferFetchOnlyRoots = [] };
+        // Sem marcar como confiável: a conferência de segurança roda (elevado ou não) e deve excluir.
+        var registry = TransferRootRegistry.Build(settings, NullLogger.Instance, ownBase: dir.Path);
+
+        Assert.Empty(registry.SendRoots);
+        Assert.Empty(registry.FetchRoots);
+    }
+
+    [Fact]
+    public void Registry_excludes_a_junction_planted_as_a_root_without_touching_the_target()
+    {
+        using var dir = new TempDir();
+        var outside = Path.Combine(dir.Path, "Outside");
+        Directory.CreateDirectory(outside);
+        var before = new DirectoryInfo(outside).GetAccessControl().GetSecurityDescriptorSddlForm(AccessControlSections.Access | AccessControlSections.Owner);
+        var root = Path.Combine(dir.Path, "Inbox");
+        PathGuardTests.CreateDirectoryLink(root, outside);   // a "raiz" é na verdade uma junction para fora
+
+        try
+        {
+            var settings = new AgentSettings { TransferRoots = [root], TransferFetchOnlyRoots = [] };
+            var registry = BuildTrusted(settings, dir.Path, NullLogger.Instance);   // confiável, mas reparse é sempre recusado
+
+            Assert.Empty(registry.SendRoots);
+        }
+        finally
+        {
+            Directory.Delete(root);   // só o link
+        }
+
+        var after = new DirectoryInfo(outside).GetAccessControl().GetSecurityDescriptorSddlForm(AccessControlSections.Access | AccessControlSections.Owner);
+        Assert.Equal(before, after);   // a ACL do alvo da junction NÃO foi tocada
+    }
+
+    [Fact]
+    public async Task Handlers_use_only_registry_roots_not_settings()
+    {
+        using var f = new Fixture();
+        // Settings aponta para a raiz, mas o registro (explícito) está vazio: o handler recusa.
+        var sendHandler = new FileSendHandler(f.Api, f.Settings, TimeProvider.System, f.Runtime, new TransferRootRegistry([], []), f.Disk, NullLogger<FileSendHandler>.Instance);
+        f.SetupSend(Path.Combine(f.Root, "a.txt"), Bytes("0123"));
+
+        var outcome = await sendHandler.ExecuteAsync(Params(), f.Context(), default);
+
+        Assert.Equal(TaskResultStatus.Rejected, outcome.Status);
+        Assert.Equal(0, f.Api.GetCalls);
+    }
+
+    // (A ausência de File.Move/Delete/Copy/Replace e de SetAccessControl por caminho nos handlers/ACL é conferida por
+    //  revisão — os fontes não são copiados para o diretório local onde o dotnet test roda neste ambiente.)
 
     // ---------------------------------------------------------------- catálogo, validador e runner
 
@@ -1161,4 +1433,5 @@ public class FileHandlersTests(ITestOutputHelper output)
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true, ExactSpelling = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CreateHardLinkW(string lpFileName, string lpExistingFileName, IntPtr lpSecurityAttributes);
+
 }
