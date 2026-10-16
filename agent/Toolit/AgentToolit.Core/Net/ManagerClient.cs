@@ -285,7 +285,8 @@ public sealed class ManagerClient(
         var query = split < 0 ? "" : pathAndQuery[(split + 1)..];
 
         var agentId = runtime.State?.AgentId ?? throw new InvalidOperationException("Agent não registrado.");
-        var timestamp = (time.GetUtcNow().ToUnixTimeSeconds() + Interlocked.Read(ref _clockOffsetSeconds)).ToString();
+        var timestamp = (time.GetUtcNow().ToUnixTimeSeconds() + Interlocked.Read(ref _clockOffsetSeconds))
+            .ToString(System.Globalization.CultureInfo.InvariantCulture);
         var nonce = RequestSigner.NewNonce();
         var canonical = RequestSigner.Canonical(method.Method, path, query, timestamp, nonce, body);
 
@@ -309,7 +310,7 @@ public sealed class ManagerClient(
                 code = error.TryGetProperty("code", out var c) ? c.GetString() ?? code : code;
                 message = error.TryGetProperty("message", out var m) ? m.GetString() ?? message : message;
                 if (error.TryGetProperty("details", out var d) && d.ValueKind == JsonValueKind.Object
-                    && d.TryGetProperty("server_time", out var st) && DateTimeOffset.TryParse(st.GetString(), out var parsed))
+                    && d.TryGetProperty("server_time", out var st) && DateTimeOffset.TryParse(st.GetString(), System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var parsed))
                 {
                     serverTime = parsed;
                 }

@@ -4,6 +4,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- Ganchos de teste do PathGuard (OverrideNormalizationForTests/BeforeOpenForTests). -->
+    <InternalsVisibleTo Include="AgentToolit.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite.Core" Version="8.0.11" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="8.0.1" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="8.0.1" />

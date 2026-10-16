@@ -177,7 +177,7 @@ internal static class Commands
         }
 
         // O Registro do Windows 11 ainda diz "Windows 10" em ProductName; o build (>= 22000) desempata.
-        if (name is not null && int.TryParse(build, out var b) && b >= 22000)
+        if (name is not null && int.TryParse(build, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var b) && b >= 22000)
         {
             name = name.Replace("Windows 10", "Windows 11", StringComparison.Ordinal);
         }

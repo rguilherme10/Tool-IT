@@ -133,7 +133,7 @@ public static class SoftwareParser
     }
 
     private static int? Int(IReadOnlyDictionary<string, object?> v, string key) =>
-        v.TryGetValue(key, out var raw) && raw is not null && int.TryParse(raw.ToString(), out var n) ? n : null;
+        v.TryGetValue(key, out var raw) && raw is not null && int.TryParse(raw.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var n) ? n : null;
 }
 
 public sealed class SoftwareCollector(IUninstallSource source) : ISectionCollector

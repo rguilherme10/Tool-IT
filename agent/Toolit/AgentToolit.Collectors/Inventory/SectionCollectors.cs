@@ -142,8 +142,8 @@ public sealed class HardwareCollector(IWmiQuery wmi, ISystemProbeMemory memory) 
 
     /// <summary>CIM datetime "20240131000000.000000+000" → "2024-01-31".</summary>
     public static string? ParseCimDate(string? value) =>
-        value is { Length: >= 8 } && DateTime.TryParseExact(value[..8], "yyyyMMdd", null, System.Globalization.DateTimeStyles.None, out var d)
-            ? d.ToString("yyyy-MM-dd") : null;
+        value is { Length: >= 8 } && DateTime.TryParseExact(value[..8], "yyyyMMdd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var d)
+            ? d.ToString("yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture) : null;
 }
 
 public interface ISystemProbeMemory

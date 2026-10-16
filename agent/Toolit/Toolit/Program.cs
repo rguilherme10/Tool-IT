@@ -131,6 +131,11 @@ builder.Services.AddHostedService<TaskWorker>();
 var host = builder.Build();
 host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("AgentToolit")
     .LogInformation("Toolit Agent {Version} iniciado (registrado={Enrolled}).", Commands.Version, host.Services.GetRequiredService<AgentRuntime>().IsEnrolled);
+if (!AgentToolit.Core.Transfers.PathGuard.NormalizationAvailable)
+{
+    host.Services.GetRequiredService<ILoggerFactory>().CreateLogger("AgentToolit")
+        .LogWarning("Normalização Unicode indisponível neste sistema: transferências de arquivo serão recusadas.");
+}
 
 await host.RunAsync();
 

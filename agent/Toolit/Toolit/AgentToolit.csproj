@@ -6,7 +6,9 @@
     <Product>Toolit Agent</Product>
     <Company>Toolit</Company>
     <!-- Sem trimming/AOT: o Agent usa WMI/Registro/reflexão do System.Management. -->
-    <InvariantGlobalization>true</InvariantGlobalization>
+    <!-- Globalização real (ICU do Windows 10 1903+, senão NLS): o PathGuard precisa de NFC/NFKC. Com "true",
+         Normalize vira no-op e o PathGuard recusa toda transferência (PathGuard.NormalizationAvailable). -->
+    <InvariantGlobalization>false</InvariantGlobalization>
     <!-- Pacote para instalação: x64 e autossuficiente (não exige .NET instalado nos PCs). -->
     <RuntimeIdentifier>win-x64</RuntimeIdentifier>
     <SelfContained>true</SelfContained>

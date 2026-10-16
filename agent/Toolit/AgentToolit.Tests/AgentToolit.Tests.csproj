@@ -4,6 +4,8 @@
 
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <!-- Igual ao host (Toolit/AgentToolit.csproj): globalização real, para NFC/NFKC do PathGuard funcionarem. -->
+    <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>

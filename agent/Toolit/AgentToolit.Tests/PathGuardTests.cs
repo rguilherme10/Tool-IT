@@ -168,7 +168,7 @@ public class PathGuardTests(ITestOutputHelper output)
     // ---------------------------------------------------------------- disco
 
     /// <summary>Raiz permitida e uma pasta "de fora", ambas dentro de um diretório temporário do teste.</summary>
-    private static (string Root, string Outside) Layout(TempDir dir)
+    internal static (string Root, string Outside) Layout(TempDir dir)
     {
         var baseDir = Path.GetFullPath(dir.Path);
         Assert.Null(PathGuard.ValidateDirectory(baseDir));   // o diretório temporário precisa ser um caminho aceitável
@@ -303,7 +303,7 @@ public class PathGuardTests(ITestOutputHelper output)
     /// "mklink /J" (sem privilégio). Os caminhos vêm do próprio teste e vão em ArgumentList (sem montar string de shell).
     /// Se nenhum der certo o teste FALHA com mensagem explícita — nunca passa sem ter testado o link.
     /// </summary>
-    private static string CreateDirectoryLink(string link, string target)
+    internal static string CreateDirectoryLink(string link, string target)
     {
         try
         {
