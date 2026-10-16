@@ -8,6 +8,7 @@ use App\Http\Controllers\Controller;
 use App\Models\EndpointGroup;
 use App\Services\Audit\AuditLogger;
 use App\Services\Tasks\TaskService;
+use App\Services\Transfers\TransferService;
 use App\Support\Authorization\AccessResolver;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -21,6 +22,7 @@ class EndpointManagementController extends Controller
         private readonly AccessResolver $access,
         private readonly AuditLogger $audit,
         private readonly TaskService $tasks,
+        private readonly TransferService $transfers,
     ) {}
 
     public function moveGroup(Request $request, string $uuid): RedirectResponse
@@ -62,7 +64,9 @@ class EndpointManagementController extends Controller
             $this->audit->log($new === EndpointStatus::Disabled ? 'endpoint.disabled' : 'endpoint.enabled', $request->user(), $endpoint, $endpoint->id);
 
             // Computador desativado não executa tarefas: as abertas são canceladas na mesma transação.
+            // Transferências antes das tarefas: o evento das tarefas encontra a transferência já encerrada.
             if ($new === EndpointStatus::Disabled) {
+                $this->transfers->cancelOpenFor($endpoint, 'endpoint_deactivated');
                 $this->tasks->cancelOpenFor($endpoint, 'endpoint_deactivated');
             }
         });

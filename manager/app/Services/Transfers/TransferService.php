@@ -129,6 +129,10 @@ class TransferService
         if ($t->direction !== TransferDirection::Send || $t->status !== TransferStatus::Uploading) {
             throw TransferException::conflict('A transferência não está recebendo o arquivo.');
         }
+        if ($t->expires_at !== null && $t->expires_at->lte(now())) {
+            throw TransferException::conflict('O prazo para enviar este arquivo terminou.');
+        }
+        $this->ensureEndpointUsable($t);
         $this->checkChunk($n, strlen($bytes), (int) $t->size, (int) $t->chunk_size);
 
         $this->writeChunk($t, 'up', $n, $bytes);
@@ -164,6 +168,7 @@ class TransferService
         if ($t->direction !== TransferDirection::Send || $t->status !== TransferStatus::Uploading) {
             throw TransferException::conflict('A transferência não está recebendo o arquivo.');
         }
+        $this->ensureEndpointUsable($t);
         $missing = array_diff(range(0, (int) $t->chunks_total - 1), $this->chunkIndexes($t, 'up'));
         if ($missing !== []) {
             throw TransferException::conflict('Faltam '.count($missing).' parte(s) do arquivo.');
@@ -557,6 +562,37 @@ class TransferService
     }
 
     /**
+     * Revogação/desativação do computador: encerra TODAS as transferências abertas dele (inclusive `uploading`, que
+     * ainda não tem tarefa). Chamar ANTES de TaskService::cancelOpenFor, na mesma transação: o evento das tarefas
+     * então encontra a transferência já final e não audita de novo. Idempotente.
+     * `verifying` só pode ir a completed/failed (máquina de estados): vai a failed com o mesmo motivo.
+     *
+     * @return int transferências encerradas
+     */
+    public function cancelOpenFor(Endpoint $e, string $reason): int
+    {
+        $reason = mb_substr($reason, 0, 255);
+        $count = 0;
+
+        foreach (FileTransfer::query()->where('endpoint_id', $e->id)->whereIn('status', TransferStatus::openValues())->get() as $t) {
+            DB::transaction(function () use ($t, $reason, &$count) {
+                $previous = $t->status;
+                $to = $previous->canTransitionTo(TransferStatus::Cancelled) ? TransferStatus::Cancelled : TransferStatus::Failed;
+                try {
+                    $this->move($t, [$previous], $to, ['error' => $reason]);
+                } catch (TransferException) {
+                    return; // mudou de estado entre a consulta e a atualização
+                }
+                $this->audit->log($to === TransferStatus::Cancelled ? 'transfer.cancelled' : 'transfer.failed', null, $t, $t->endpoint_id,
+                    $this->meta($t, ['previous_status' => $previous->value, 'reason' => $reason]));
+                $count++;
+            });
+        }
+
+        return $count;
+    }
+
+    /**
      * Retenção: expira uploads abandonados e apaga os blobs de transferências encerradas há mais de $days dias
      * (metadados ficam, com purged_at). Transferências abertas nunca são tocadas.
      *
@@ -766,6 +802,19 @@ class TransferService
             if (! $this->access->can($by, $permission, $e)) {
                 throw new AuthorizationException('Você não tem permissão para transferir arquivos neste computador.');
             }
+        }
+    }
+
+    /**
+     * Defesa em profundidade: computador revogado/desativado não recebe mais partes nem conclusão de upload.
+     *
+     * @throws TransferException
+     */
+    private function ensureEndpointUsable(FileTransfer $t): void
+    {
+        $e = Endpoint::query()->find($t->endpoint_id);
+        if ($e === null || $e->status !== EndpointStatus::Active || $e->trashed() || ! $e->activeInstallation()->exists()) {
+            throw TransferException::conflict('O computador não está ativo ou não tem agente ativo.');
         }
     }
 

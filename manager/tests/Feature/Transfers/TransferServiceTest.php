@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Transfers;
 
+use App\Enums\EndpointStatus;
 use App\Enums\RoleKey;
 use App\Enums\TaskRisk;
 use App\Enums\TaskState;
@@ -15,6 +16,8 @@ use App\Models\FileTransfer;
 use App\Models\FileTransferPolicy;
 use App\Models\RemoteTask;
 use App\Models\User;
+use App\Services\Agents\EnrollmentService;
+use App\Services\Agents\RevocationService;
 use App\Services\Tasks\TaskService;
 use App\Services\Transfers\TransferService;
 use Illuminate\Auth\Access\AuthorizationException;
@@ -22,6 +25,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
+use Tests\Support\FakeAgent;
 use Tests\TestCase;
 
 class TransferServiceTest extends TestCase
@@ -714,6 +718,103 @@ class TransferServiceTest extends TestCase
         $fresh = $t->fresh();
         $this->assertSame(TransferStatus::Failed, $fresh->status);
         $this->assertStringContainsString('sem confirmação', $fresh->error);
+    }
+
+    /** Upload em andamento + envio pronto (com tarefa) + recuperação, e uma transferência de outro computador. */
+    private function openTransfers(): array
+    {
+        $uploading = $this->newSend(2048, 'a.txt');
+        $this->transfers->storeUploadChunk($uploading, 0, str_repeat('a', 1024));
+        $ready = $this->readySend('0123456789');
+        $fetch = $this->transfers->createFetch($this->operator, $this->endpoint, self::OUTBOX.'\\a.log');
+        $other = $this->newSend(10, 'b.txt', null, $this->activeEndpoint());
+
+        return [$uploading, $ready, $fetch, $other];
+    }
+
+    private function assertClosedBy(string $reason, array $transfers, FileTransfer $other): void
+    {
+        [$uploading, $ready, $fetch] = $transfers;
+        foreach ([$uploading, $ready, $fetch] as $t) {
+            $fresh = $t->fresh();
+            $this->assertSame(TransferStatus::Cancelled, $fresh->status);
+            $this->assertSame($reason, $fresh->error);
+            // Exatamente um registro de cancelamento por transferência (o evento da tarefa não audita de novo).
+            $this->assertSame(1, DB::table('audit_logs')->where('action', 'transfer.cancelled')
+                ->where('subject_id', (string) $t->id)->where('subject_type', $t->getMorphClass())->count());
+        }
+        foreach ([$ready, $fetch] as $t) {
+            $this->assertSame(TaskState::Cancelled, RemoteTask::query()->findOrFail($t->remote_task_id)->state);
+        }
+        $this->expectTransferError(fn () => $this->transfers->storeUploadChunk($uploading->fresh(), 1, str_repeat('b', 1024)), 409);
+        $this->assertSame(TransferStatus::Uploading, $other->fresh()->status, 'outro computador não é afetado');
+        $this->artisan('audit:verify')->assertSuccessful();
+    }
+
+    public function test_revocation_cancels_all_open_transfers_including_uploads(): void
+    {
+        $transfers = $this->openTransfers();
+
+        app(RevocationService::class)->revoke($this->endpoint->activeInstallation()->firstOrFail(), $this->userWithRole(RoleKey::Admin), 'perdido');
+
+        $this->assertClosedBy('agent_revoked', $transfers, $transfers[3]);
+    }
+
+    public function test_deactivation_cancels_all_open_transfers_including_uploads(): void
+    {
+        $transfers = $this->openTransfers();
+        $admin = $this->withTwoFactor($this->userWithRole(RoleKey::Admin));
+
+        $this->actingAs($admin)->post('/endpoints/'.$this->endpoint->uuid.'/status', ['status' => 'disabled'])->assertRedirect();
+
+        $this->assertClosedBy('endpoint_deactivated', $transfers, $transfers[3]);
+    }
+
+    public function test_reenrollment_revocation_cancels_open_transfers(): void
+    {
+        $transfers = $this->openTransfers();
+        $admin = $this->userWithRole(RoleKey::Admin);
+        [, $plain] = app(EnrollmentService::class)->issueToken($admin, null, 1, replaces: $this->endpoint);
+
+        (new FakeAgent($this))->enroll($plain)->assertCreated();
+
+        $this->assertClosedBy('agent_revoked', $transfers, $transfers[3]);
+    }
+
+    public function test_cancel_open_for_is_idempotent_and_skips_final_transfers(): void
+    {
+        [$uploading, $ready] = $this->openTransfers();
+        $done = $this->readySend('abc');
+        $this->transfers->complete($done, $done->sha256, 3);
+
+        $this->assertSame(3, $this->transfers->cancelOpenFor($this->endpoint, 'agent_revoked'));
+        $this->assertSame(0, $this->transfers->cancelOpenFor($this->endpoint, 'agent_revoked'));
+        $this->assertSame(TransferStatus::Completed, $done->fresh()->status);
+        $this->assertSame(3, DB::table('audit_logs')->where('action', 'transfer.cancelled')->count());
+
+        // A tarefa cancelada depois encontra a transferência já encerrada: nada a mais na auditoria.
+        $this->tasks->cancelOpenFor($this->endpoint, 'agent_revoked');
+        $this->assertSame(3, DB::table('audit_logs')->where('action', 'transfer.cancelled')->count());
+    }
+
+    public function test_inactive_endpoint_or_expired_upload_refuses_chunks_and_completion(): void
+    {
+        $t = $this->newSend(2048, 'a.txt');
+        $this->transfers->storeUploadChunk($t, 0, str_repeat('a', 1024));
+
+        FileTransfer::query()->whereKey($t->id)->update(['expires_at' => now()->subSecond()]);
+        $this->expectTransferError(fn () => $this->transfers->storeUploadChunk($t->fresh(), 1, str_repeat('b', 1024)), 409);
+        FileTransfer::query()->whereKey($t->id)->update(['expires_at' => now()->addHour()]);
+
+        $this->endpoint->installations()->update(['status' => 'revoked']);
+        $this->expectTransferError(fn () => $this->transfers->storeUploadChunk($t->fresh(), 1, str_repeat('b', 1024)), 409);
+        $this->endpoint->installations()->update(['status' => 'active']);
+        $this->transfers->storeUploadChunk($t->fresh(), 1, str_repeat('b', 1024));
+
+        $this->endpoint->forceFill(['status' => EndpointStatus::Disabled])->save();
+        $this->expectTransferError(fn () => $this->transfers->storeUploadChunk($t->fresh(), 1, str_repeat('b', 1024)), 409);
+        $this->expectTransferError(fn () => $this->transfers->completeUpload($this->operator, $t->fresh()), 409);
+        $this->assertSame(0, RemoteTask::query()->count());
     }
 
     public function test_user_cancel_of_ready_transfer_cancels_its_task(): void
