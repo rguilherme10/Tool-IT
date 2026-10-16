@@ -28,3 +28,6 @@ agent/**/ToolitSetup/*.tmp
 build-msi.log
 deploy/docker/.env
 deploy/docker/certs/
+
+# SDD scratch
+.superpowers/
