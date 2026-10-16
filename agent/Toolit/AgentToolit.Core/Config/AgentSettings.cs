@@ -16,10 +16,60 @@ public sealed class AgentSettings
     public long QueueMaxBytes { get; set; } = 20L * 1024 * 1024;
     public int LogRetentionDays { get; set; } = 14;
 
+    private int _taskPollSeconds = 10;
+
+    /// <summary>Intervalo do poll curto de tarefas (GET /tasks/next?wait=0). Sempre dentro de [Min, Max].</summary>
+    public int TaskPollSeconds
+    {
+        get => _taskPollSeconds;
+        set => _taskPollSeconds = Math.Clamp(value, MinTaskPollSeconds, MaxTaskPollSeconds);
+    }
+
+    /// <summary>
+    /// Veto local do Agent para transferências: só dentro destas pastas (envio e recuperação). A política do Manager
+    /// não chega ao Agent; o que vale aqui é esta lista. Entradas são conferidas no uso com PathGuard.ValidateDirectory
+    /// (inválidas são ignoradas e registradas pelo chamador). Nulo no config.json = lista vazia (transferência desligada).
+    /// </summary>
+    public List<string> TransferRoots
+    {
+        get => _transferRoots;
+        set => _transferRoots = value ?? [];
+    }
+
+    /// <summary>Pastas aceitas SÓ para recuperação (fetch), além de <see cref="TransferRoots"/>: ex. logs.</summary>
+    public List<string> TransferFetchOnlyRoots
+    {
+        get => _transferFetchOnlyRoots;
+        set => _transferFetchOnlyRoots = value ?? [];
+    }
+
+    private List<string> _transferRoots = [ProgramDataToolit("Inbox"), ProgramDataToolit("Outbox")];
+
+    private List<string> _transferFetchOnlyRoots = [ProgramDataToolit("Logs")];
+
+    private long _transferBytesPerSecond = DefaultTransferBytesPerSecond;
+
+    /// <summary>Banda máxima das transferências (bytes/s). Sempre dentro de [Min, Max].</summary>
+    public long TransferBytesPerSecond
+    {
+        get => _transferBytesPerSecond;
+        set => _transferBytesPerSecond = Math.Clamp(value, MinTransferBytesPerSecond, MaxTransferBytesPerSecond);
+    }
+
+    public const long DefaultTransferBytesPerSecond = 4L * 1024 * 1024;
+    public const long MinTransferBytesPerSecond = 64L * 1024;
+    public const long MaxTransferBytesPerSecond = 64L * 1024 * 1024;
+
+    /// <summary>%ProgramData%\Toolit\{name}.</summary>
+    private static string ProgramDataToolit(string name) =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "Toolit", name);
+
     /// <summary>Limites mínimos: o Manager não consegue levar o Agent a consultas abusivas.</summary>
     public const int MinHeartbeatSeconds = 15;
     public const int MinMetricsSeconds = 15;
     public const int MinInventoryHours = 1;
+    public const int MinTaskPollSeconds = 5;
+    public const int MaxTaskPollSeconds = 300;
 
     public void ApplyServerConfig(ServerConfig server)
     {

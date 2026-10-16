@@ -3,6 +3,7 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'Toolit') — Toolit</title>
     @vite(['resources/css/app.css', 'resources/js/app.js'])
 </head>
@@ -19,9 +20,13 @@
                 @can('alerts.view')
                     <a href="{{ route('alerts.index') }}" class="hover:text-slate-900">Alertas</a>
                 @endcan
+                @can('tasks.approve')
+                    <a href="{{ route('tasks.approvals') }}" class="hover:text-slate-900">Aprovações</a>
+                @endcan
                 @can('settings.manage')
                     <a href="{{ route('alert-rules.index') }}" class="hover:text-slate-900">Regras de alerta</a>
                     <a href="{{ route('groups.index') }}" class="hover:text-slate-900">Grupos</a>
+                    <a href="{{ route('file-policies.index') }}" class="hover:text-slate-900">Política de arquivos</a>
                 @endcan
                 @can('users.manage')
                     <a href="{{ route('users.index') }}" class="hover:text-slate-900">Usuários</a>

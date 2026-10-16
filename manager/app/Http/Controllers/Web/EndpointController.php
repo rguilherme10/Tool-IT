@@ -9,12 +9,16 @@ use App\Models\Alert;
 use App\Models\Endpoint;
 use App\Models\EndpointGroup;
 use App\Models\EndpointInventory;
+use App\Models\FileTransfer;
 use App\Models\InventorySnapshot;
 use App\Models\NetworkInterface;
+use App\Models\RemoteTask;
 use App\Models\SoftwareItem;
+use App\Services\Transfers\TransferPolicyResolver;
 use App\Support\Authorization\AccessResolver;
 use App\Support\Inventory\InventoryDiff;
 use App\Support\Metrics\MetricSeries;
+use App\Support\Tasks\TaskForm;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -86,11 +90,17 @@ class EndpointController extends Controller
         if ($this->access->can($user, Permission::AlertsView, $endpoint)) {
             $tabs += ['alerts' => 'Alertas'];
         }
+        if ($this->access->can($user, Permission::TasksView, $endpoint)) {
+            $tabs += ['tasks' => 'Tarefas'];
+        }
+        if ($this->access->can($user, Permission::FilesTransferSend, $endpoint) || $this->access->can($user, Permission::FilesTransferFetch, $endpoint)) {
+            $tabs += ['files' => 'Arquivos'];
+        }
 
         $tab = (string) $request->query('tab', 'details');
         if (! isset($tabs[$tab])) {
             // Aba conhecida mas sem permissão = 403; qualquer outro valor cai em "Detalhes".
-            abort_if(in_array($tab, ['software', 'network', 'metrics', 'alerts'], true), 403);
+            abort_if(in_array($tab, ['software', 'network', 'metrics', 'alerts', 'tasks', 'files'], true), 403);
             $tab = 'details';
         }
 
@@ -109,6 +119,8 @@ class EndpointController extends Controller
             'history' => $this->historyData($endpoint, $sensitive),
             'metrics' => $this->metricsData($request, $endpoint),
             'alerts' => ['endpointAlerts' => $this->endpointAlerts($endpoint)],
+            'tasks' => $this->tasksData($request, $endpoint),
+            'files' => $this->filesData($request, $endpoint),
             default => [
                 'audit' => $this->access->canGlobally($user, Permission::AuditView)
                     ? DB::table('audit_logs')->where('endpoint_id', $endpoint->id)->orderByDesc('seq')->limit(20)->get()
@@ -121,6 +133,56 @@ class EndpointController extends Controller
                 'canUngroup' => $this->access->canForGroup($user, Permission::EndpointsManage, null),
             ],
         });
+    }
+
+    /** @return array<string, mixed> */
+    private function tasksData(Request $request, Endpoint $endpoint): array
+    {
+        $tasks = RemoteTask::where('endpoint_id', $endpoint->id)->with('creator:id,name')
+            ->orderByDesc('id')->paginate(20)->withQueryString();
+        $tasks->getCollection()->each->setRelation('endpoint', $endpoint);   // evita uma consulta por linha
+
+        return [
+            'tasks' => $tasks,
+            'creatableTypes' => TaskForm::creatableTypes($request->user(), $endpoint, $this->access),
+        ];
+    }
+
+    /**
+     * Aba Arquivos: política efetiva (liga/desliga cada direção), o que o usuário pode fazer e a lista paginada.
+     * Só decide o que MOSTRAR; as rotas de transferência autorizam de novo no backend.
+     *
+     * @return array<string, mixed>
+     */
+    private function filesData(Request $request, Endpoint $endpoint): array
+    {
+        $user = $request->user();
+        $policy = app(TransferPolicyResolver::class)->forEndpoint($endpoint);
+        $dirs = fn (?array $list): array => array_values(array_filter($list ?? [], 'is_string'));
+
+        $canCreate = $this->access->can($user, Permission::TasksCreate, $endpoint);
+        $maxBytes = max(1, (int) ($policy?->max_bytes ?? config('toolit.transfers.max_bytes', 104857600)));
+
+        $transfers = FileTransfer::query()->where('endpoint_id', $endpoint->id)->with('creator:id,name')
+            ->orderByDesc('id')->paginate(20)->withQueryString();
+        $transfers->getCollection()->each->setRelation('endpoint', $endpoint);   // evita uma consulta por linha
+
+        return [
+            'transfers' => $transfers,
+            'hasPolicy' => $policy !== null,
+            'sendDirs' => $dirs($policy?->send_dirs),
+            'fetchDirs' => $dirs($policy?->fetch_dirs),
+            'allowedExtensions' => $dirs($policy?->allowed_extensions),
+            'maxBytes' => $maxBytes,
+            'allowOverwrite' => (bool) ($policy?->allow_overwrite ?? false),
+            'mayCreate' => $canCreate,
+            'maySend' => $canCreate && $this->access->can($user, Permission::FilesTransferSend, $endpoint),
+            'mayFetch' => $canCreate && $this->access->can($user, Permission::FilesTransferFetch, $endpoint),
+            'permSend' => $this->access->can($user, Permission::FilesTransferSend, $endpoint),
+            'permFetch' => $this->access->can($user, Permission::FilesTransferFetch, $endpoint),
+            'permCancel' => $this->access->can($user, Permission::TasksCancel, $endpoint),
+            'chunkBytes' => max(1, (int) config('toolit.transfers.browser_chunk_bytes', 1048576)),
+        ];
     }
 
     /** Ativos + os 20 resolvidos mais recentes. */

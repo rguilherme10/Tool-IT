@@ -3,13 +3,16 @@
 namespace App\Providers;
 
 use App\Enums\Permission;
+use App\Events\RemoteTaskFinished;
 use App\Models\Endpoint;
 use App\Models\User;
+use App\Services\Transfers\TransferService;
 use App\Support\Authorization\AccessResolver;
 use Carbon\Carbon;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -37,6 +40,10 @@ class AppServiceProvider extends ServiceProvider
 
         $this->defineGates();
         $this->defineRateLimiters();
+
+        // Fim de tarefa file.* atualiza a transferência na mesma transação (TaskService não depende de TransferService).
+        // Resolvido só no disparo: nada de TransferService no construtor de TaskService.
+        Event::listen(RemoteTaskFinished::class, fn (RemoteTaskFinished $e) => $this->app->make(TransferService::class)->onTaskFinished($e->task));
     }
 
     /**
@@ -66,6 +73,12 @@ class AppServiceProvider extends ServiceProvider
         // API do Agent já autenticada: por instalação; antes disso, por IP (impede inundação com ids forjados).
         RateLimiter::for('agent-api', fn (Request $r) => Limit::perMinute(
             (int) config('toolit.agent.rate_limit_per_minute', 120)
+        )->by((string) ($r->attributes->get('agent_installation_uuid') ?? $r->ip())));
+
+        // Transferência de arquivos: orçamento próprio (chunks de 2 MiB a ~4 MiB/s já são 120 req/min), mesma chave
+        // por instalação. Não consome o orçamento de agent-api (heartbeat, tasks, progress, result).
+        RateLimiter::for('agent-transfer', fn (Request $r) => Limit::perMinute(
+            (int) config('toolit.transfers.rate_limit_per_minute', 600)
         )->by((string) ($r->attributes->get('agent_installation_uuid') ?? $r->ip())));
 
         RateLimiter::for('agent-api-preauth', fn (Request $r) => Limit::perMinute(600)->by($r->ip()));

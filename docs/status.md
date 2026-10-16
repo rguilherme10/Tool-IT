@@ -1,6 +1,6 @@
 # Estado do projeto
 
-Atualizado em 2026-10-14 (alertas e administração concluídos no Manager). **Só consta como "concluído" o que foi executado e validado** (evidências em [`test-evidence.md`](test-evidence.md)).
+Atualizado em 2026-10-15 (tarefas remotas tipadas — task 008 — com E2E do Agent real). **Só consta como "concluído" o que foi executado e validado** (evidências em [`test-evidence.md`](test-evidence.md)).
 
 ## Fase 1 — Fundação (Manager) ✔
 RBAC por grupo, auditoria encadeada, login + TOTP, API do Agent (enroll, heartbeat, rotação, revogação), painel mínimo. Detalhes e testes no histórico de [`test-evidence.md`](test-evidence.md).
@@ -28,10 +28,23 @@ RBAC por grupo, auditoria encadeada, login + TOTP, API do Agent (enroll, heartbe
 | Histórico de mudanças do inventário (hardware/SO/rede/software) | ✔ testes automatizados (2026-10-15) · ⚠ sem revisão visual · aba **Histórico** | `InventoryDiff`; L26, L27 |
 | Histórico/log do endpoint no painel | parcial | auditoria por endpoint + métricas 7 d; sem eventos do Windows |
 
+## Fase 3 — Tarefas remotas (task 008)
+
+| Item | Estado | Observação |
+|---|---|---|
+| Modelo, estados, catálogo de 9 tipos, claim condicional com lease, expiração/requeue, idempotência, auditoria | ✔ | Testes + E2E; ADR-021; [`api/task-types.md`](api/task-types.md) |
+| API do Agent `next` (poll curto `wait=0`, 204) / `progress` / `result`; `tasks_available` e `cancel_task_ids` no heartbeat | ✔ | E2E com o `.exe` publicado + `tests/integration/tasks-smoke.php` (14/14) |
+| Painel: aba Tarefas, Aprovações, detalhe; separação de funções (criador não aprova) | ✔ testes + E2E pelo serviço/HTTP · ⚠ CSS visto com Tailwind CDN (L38) | |
+| Agent: leitura (`system.info`, `process.list`, `service.list`, `inventory.refresh`) | ✔ | E2E real: `completed` em 2–11 s |
+| Agent: `process.kill` com processos protegidos, guarda de PID reutilizado e checagem de processo crítico | ✔ em processo descartável (`ping.exe`) | `lsass` real **não** testado (só em VM) |
+| Agent: `service.start|stop|restart`, `agent.restart` | ⚠ só *fakes* | Serviço real do Windows **não validado** (L32, L36, L8) |
+| Concorrência real do claim em MySQL | ❌ não validado | L30 (task 013) |
+| PowerShell | fora deste ciclo | — |
+
 ## Próximos passos (ordem)
 1. **Instalar `ToolitSetup.msi` como Administrador** (interativo e `/qn`), reiniciar o PC, derrubar a rede, atualizar e desinstalar; registrar em `test-evidence.md`.
 2. Validar Manager em MySQL + Redis (Laragon) — L1.
-3. Task 007 lado Agent (serviços monitorados, eventos), depois Fase 3 (tarefas 008, arquivos 009).
+3. Task 007 lado Agent (serviços monitorados, eventos); validar handlers de serviço e `agent.restart` numa VM com o serviço instalado (L32, L36); depois arquivos (009).
 4. Migrar o Agent para `net10.0` quando o SDK 10 estiver instalado (L2).
 
 ## Riscos abertos

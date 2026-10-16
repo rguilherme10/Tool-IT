@@ -52,9 +52,9 @@ public sealed class FileLoggerProvider : ILoggerProvider
     internal void Write(LogLevel level, string category, string message, Exception? exception)
     {
         var now = _time.GetUtcNow();
-        var path = Path.Combine(_directory, $"agent-{now:yyyyMMdd}.log");
+        var path = Path.Combine(_directory, string.Create(System.Globalization.CultureInfo.InvariantCulture, $"agent-{now:yyyyMMdd}.log"));
         var line = new StringBuilder()
-            .Append(now.ToString("yyyy-MM-ddTHH:mm:ss.fffZ")).Append(' ')
+            .Append(now.ToString("yyyy-MM-ddTHH:mm:ss.fffZ", System.Globalization.CultureInfo.InvariantCulture)).Append(' ')
             .Append(level.ToString().ToUpperInvariant()).Append(' ')
             .Append(category).Append(" - ")
             .Append(message.ReplaceLineEndings(" "));

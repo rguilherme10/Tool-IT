@@ -1,0 +1,12 @@
+{
+  "transfer_id": "5e2a9c41-7b3d-4f60-a8e1-2c9d4b6f7a10",
+  "endpoint_id": "8a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d",
+  "direction": "fetch",
+  "size": null,
+  "sha256": null,
+  "chunk_size": 2097152,
+  "chunks_total": null,
+  "remote_path": "C:\\ProgramData\\Toolit\\Outbox\\diag.log",
+  "overwrite": false,
+  "received_chunks": []
+}

@@ -37,6 +37,6 @@ Permissões são strings `modulo.acao` definidas em `App\Enums\Permission` (font
 
 Regras:
 - Administrador global não pode ser removido do último usuário (guard no serviço de usuários).
-- Quem cria uma tarefa de alto risco não pode aprová-la (separação de funções).
+- Quem cria uma tarefa de alto risco não pode aprová-la nem rejeitá-la (separação de funções, aplicada no `TaskService`; testado e verificado no E2E de 2026-10-15). O **Operador TI cria** tarefas de alto risco (`process.kill`, `agent.restart`, serviço fora da allowlist), mas **só o Admin aprova** (`tasks.approve`). Consequência: numa instalação com **um único Admin**, as tarefas de alto risco criadas por ele nunca podem ser aprovadas (L31). Criar exige também a permissão do recurso (`processes.kill` / `services.control`; `processes.view` / `services.view` para as listas); criador e aprovador são reconferidos no claim. Catálogo: [`api/task-types.md`](api/task-types.md).
 - Auditor nunca recebe `tasks.create*`, `screen.view`, `files.transfer*` (testado).
 - Negado por padrão: ausência de atribuição = sem acesso.

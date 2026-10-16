@@ -31,8 +31,11 @@ class SecurityHeaders
             $headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains';
         }
 
+        // Não sobrescreve nem duplica o que a resposta já definiu (ex.: download com nosniff explícito).
         foreach ($headers as $name => $value) {
-            $response->headers->set($name, $value, false);
+            if (! $response->headers->has($name)) {
+                $response->headers->set($name, $value);
+            }
         }
 
         return $response;

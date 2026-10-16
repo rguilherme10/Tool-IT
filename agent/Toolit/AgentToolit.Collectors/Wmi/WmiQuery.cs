@@ -38,10 +38,10 @@ public sealed class WmiQuery : IWmiQuery
 internal static class WmiValue
 {
     public static string? Str(this IReadOnlyDictionary<string, object?> row, string key) =>
-        row.TryGetValue(key, out var v) && v is not null ? Clean(v.ToString()) : null;
+        row.TryGetValue(key, out var v) && v is not null ? Clean(Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture)) : null;
 
     public static long? Long(this IReadOnlyDictionary<string, object?> row, string key) =>
-        row.TryGetValue(key, out var v) && v is not null && long.TryParse(v.ToString(), out var n) ? n : null;
+        row.TryGetValue(key, out var v) && v is not null && long.TryParse(Convert.ToString(v, System.Globalization.CultureInfo.InvariantCulture), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out var n) ? n : null;
 
     public static bool? Bool(this IReadOnlyDictionary<string, object?> row, string key) =>
         row.TryGetValue(key, out var v) && v is bool b ? b : null;

@@ -43,7 +43,10 @@ public sealed class StubHandler(Func<CapturedRequest, HttpResponseMessage> respo
     {
         var body = request.Content is null ? [] : await request.Content.ReadAsByteArrayAsync(cancellationToken);
         var captured = new CapturedRequest(request.Method.Method, request.RequestUri!.AbsolutePath, request.RequestUri.Query,
-            request.Headers.ToDictionary(h => h.Key, h => h.Value.First(), StringComparer.OrdinalIgnoreCase), body);
+            request.Headers.ToDictionary(h => h.Key, h => h.Value.First(), StringComparer.OrdinalIgnoreCase), body)
+        {
+            ContentType = request.Content?.Headers.ContentType?.MediaType,
+        };
         Requests.Add(captured);
 
         return respond(captured);
@@ -59,6 +62,9 @@ public sealed class StubHandler(Func<CapturedRequest, HttpResponseMessage> respo
 public sealed record CapturedRequest(string Method, string Path, string Query, Dictionary<string, string> Headers, byte[] Body)
 {
     public string BodyText => Encoding.UTF8.GetString(Body);
+
+    /// <summary>Content-Type do corpo (só o tipo, sem parâmetros), ou null sem corpo.</summary>
+    public string? ContentType { get; init; }
 }
 
 public sealed class FakeTime(DateTimeOffset start) : TimeProvider

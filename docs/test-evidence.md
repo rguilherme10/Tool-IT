@@ -109,3 +109,47 @@ Sessão **sem Administrador**. Tudo abaixo foi observado; a instalação real do
 
 ### Não validado
 `msiexec /i` de verdade (UI e silencioso), criação/início do serviço pelo SCM, recuperação automática após falha, reinício do PC, atualização para versão maior, desinstalação, rollback, GPO/`.mst`, comportamento do enroll sob a conta SYSTEM, e a aparência real do diálogo (só as tabelas foram inspecionadas).
+
+## Tarefas remotas — painel (Tarefas, Aprovações, detalhe) — 2026-10-15
+| Verificação | Resultado |
+|---|---|
+| `TasksUiTest` (Manager) | 26 testes / 244 asserções: aba só com `tasks.view`, formulário só com tipos permitidos, idempotência (mesma chave em outro endpoint/tipo é recusada), 13 parâmetros hostis → erro de validação sem criar tarefa, criador sem botão Aprovar e POST forçado vira erro, aprovação por outro admin auditada, BOLA (grupo A × grupo B → 404 em criar/ver/cancelar/aprovar/rejeitar), operador não aprova (403), stdout/params com HTML escapados, sem PowerShell/arquivos/tela na UI, paginação 20. Suíte completa do Manager: **571 aprovados / 0 falhas** |
+| Navegador embutido (SQLite descartável com dados fictícios, apagado depois) | Vistos: Aprovações, aba Tarefas (formulários, lista, 2ª página), detalhe com stdout `<script>` (0 `<script>` no DOM, texto literal). 375 px sem overflow da página (tabela rola dentro do cartão). **Ressalva:** `npm run build` falha neste ambiente (rollup nativo); o CSS compilado é antigo e sem algumas classes novas, então o layout foi visto com o Tailwind CDN v3 injetado como aproximação. Refazer a conferência com o build real. |
+
+## Tarefas remotas — E2E com Agent real (2026-10-15)
+Executado em 2026-10-15 22:52–23:13 (horário local, UTC−4; 02:52–03:13 UTC de 16/10). Mesmo ambiente do topo (sessão **sem Administrador**).
+**Montagem:** `AgentToolit.exe` **publicado** (`dotnet publish Toolit\AgentToolit.csproj -c Release -o <temp local>`), modo console (sem serviço), `TOOLIT_AGENT_DATA` em pasta temporária, `enroll --server http://127.0.0.1:8765` com token novo (`toolit:enrollment-token --user=<operador>`). Manager: `php artisan serve --port=8765` com `APP_ENV=e2etest` → arquivo `.env.e2etest` temporário (SQLite descartável `e2e-test.sqlite`, MFA de admin desligado só nesse processo; `manager/.env` intocado). Usuários de teste: 2 Admins (A, B) e 1 Operador TI, senhas geradas localmente. Tarefas criadas/aprovadas pelo `TaskService` (o mesmo que o painel chama) e, nos casos marcados, pelo **painel via HTTP** (login Fortify + CSRF). Primeira metade com o Manager lendo o código do compartilhamento `Z:` (2–37 s por requisição); depois de uma cópia local do mesmo commit (`robocopy`, sem `.env`): 0,2–1 s por requisição. Tudo apagado no fim (banco, cópia, `.env.e2etest`, publicação, dados do Agent); nenhum `php`/`AgentToolit`/`PING` ficou rodando e a porta 8765 ficou sem listener.
+
+| Cenário | Resultado observado |
+|---|---|
+| Poll curto | `GET /tasks/next?wait=0` a cada **10–11 s** (log do servidor: 23:10:06, :16, :26, :37, :47) |
+| (a) leitura, criada pelo Operador | `system.info` → `completed` em **8 s** (Manager em `Z:`) e **2 s / 11 s** (local); `process.list` **9 s** e **11 s** (16 291 bytes, 148 de 425 processos, `truncated` interno da lista = true); `service.list` **11 s** (16 365 bytes); `inventory.refresh` criada pelo painel HTTP → `completed` e inventário reenviado. Saída real (hostname, SO 10.0.26300, 12 CPUs). Latência = `created_at` → estado final no banco |
+| (b) `process.kill` de `ping.exe` descartável (PID 9308) criado pelo Operador | nasceu `pending_approval`; Operador tentando aprovar → `AuthorizationException` (sem `tasks.approve`; 403 no painel); não foi entregue em 20 s pendente; Admin B aprovou → `completed` **15 s** após a aprovação (`Processo PING (PID 9308) encerrado.`), `tasklist` não acha mais o PID. Repetido com o Manager local (PID 16664, `name: "PING.EXE"`, aprovado pelo Admin A): **9 s**, processo encerrado |
+| Separação de funções | Admin A criou e tentou aprovar a própria tarefa → `Quem criou a tarefa não pode aprová-la nem rejeitá-la.` |
+| Guarda de PID reutilizado | `{pid: 16664, name: "notepad"}` aprovado → `rejected` `pid reuse: pid 16664 is now 'PING'`; processo intacto |
+| (c) processo protegido | `{pid: <ping descartável 16664>, name: "lsass"}` criado pelo Admin A, aprovado pelo Admin B → `rejected` (`protected process`) **2 s** após a aprovação; o `ping` continuou rodando. **Nenhum PID real de `lsass`/`csrss`/`winlogon` foi usado** |
+| (d) parâmetros hostis pelo painel HTTP (`Accept: application/json`) | 10 casos → **422** com o campo certo e nenhuma tarefa criada: tipo `shell.exec`, `powershell.run`, PID `4`, `1234; calc.exe`, `-1`, nome de processo com `\n`, serviço `Spooler & calc`, `WinDefend` (protegido), nome em array, sem `idempotency_key`. **Exceção:** `service.stop` com `"Spooler\n"` foi aparado pelo `TrimStrings` do Laravel para `Spooler` (allowlist, risco médio, sem aprovação) e **criou** a tarefa — ver incidente abaixo |
+| Cancelamento de tarefa disponível | `system.info` criada e cancelada na sequência → `cancelled`; 15 s depois nenhuma tentativa (nunca entregue) |
+| (e) revogação pelo painel HTTP | `POST /endpoints/{uuid}/revoke` (Operador) → tarefa pendente cancelada com `reason: agent_revoked`; instalação `revoked`; o Agent fez **uma** última consulta (403), registrou "tarefas suspensas" e não fez mais nenhuma requisição nos 67 s seguintes; `state.json` com `Revoked: true` |
+| `tests/integration/tasks-smoke.php` (simulador independente do protocolo) | **14/14 PASS**: 204 sem tarefa, query diferente da assinada → 401, sem assinatura → 401, entrega com exatamente os 7 campos, não entrega duas vezes (204), attempt alheio → 409 `task.conflict`, resultado → 200 `completed`, reenvio idêntico → 200, divergente → 409, `progress` após o fim → 409, heartbeat `tasks_available=false`/`cancel_task_ids=[]` |
+| Auditoria | `audit:verify`: *Cadeia íntegra: 65 registros*; `task.created`=16, `task.approved`=6, `task.claimed`=14, `task.completed`=9, `task.failed`=5, `task.cancelled`=2; metadados com tamanho da saída (`stdout_bytes`), sem conteúdo |
+
+### Achados do E2E
+1. **Resposta de `next` perdida (L37):** com o Manager lento em `Z:`, um `GET /tasks/next` levou 32 s; o Agent desistiu em 30 s, mas o servidor concluiu o claim. O `process.kill` aprovado (alvo: `ping` descartável) ficou `running` sem executor e virou `failed` (`lease_expired`) só quando `tasks:expire` foi rodado à mão (135 s após a criação). Comportamento seguro (não executa duas vezes), mas a tarefa se perde. Não corrigido: decisão de projeto (ADR-021), registrado.
+2. **Incidente de teste (não é defeito do código):** o caso hostil `"Spooler\n"` virou um `service.stop Spooler` **real**, entregue ao Agent em 5 s, que falhou com *"Cannot open 'Spooler' service on computer '.'. Acesso negado."* (sessão sem Administrador). `sc query Spooler` depois: `RUNNING`. O aparo de espaços nas pontas é do Laravel e torna o nome válido; o catálogo recusa o mesmo valor quando chamado direto. Os cenários seguintes não usaram nomes de serviços reais. Este teste violou a regra do E2E de não tocar em serviços reais (só falhou porque a sessão não tinha Administrador); E2E de entrada hostil nunca deve usar nomes de serviços reais da lista permitida.
+3. Nenhum defeito de código encontrado; nenhuma correção necessária.
+
+### Não executado / não validado
+- `process.kill` contra o `lsass` (ou `csrss`/`winlogon`) **real**: proibido aqui (um defeito derrubaria a máquina) — fazer em VM.
+- `service.start|stop|restart` com sucesso em serviço real e `agent.restart` (recuperação pelo SCM, código 75): só *fakes* (L32, L36, L8).
+- Cancelamento de tarefa **em execução** via `cancel_task_ids` e `progress`: só testes automatizados (as tarefas reais terminam em < 1 s; o Agent não envia `progress`) — L41.
+- Corrida de dois consumidores no claim em MySQL (L30); agendador real (`tasks:expire` foi rodado manualmente).
+
+### Suítes e varreduras (2026-10-15, depois do E2E)
+| Verificação | Resultado |
+|---|---|
+| `cd manager && php artisan test` | **571 aprovados / 0 falhas** (2578 asserções, 351 s, no compartilhamento `Z:`) |
+| Agent (`dotnet build` em `Z:` + `dotnet test <cópia local>/AgentToolit.Tests.dll` com `tests/contracts` copiado — L39) | **149 aprovados / 0 falhas** |
+| `composer audit` | nenhuma vulnerabilidade |
+| `dotnet list <projeto> package --vulnerable --include-transitive --source https://api.nuget.org/v3/index.json` (4 projetos, um por vez — L18) | nenhum pacote vulnerável |
+| `php vendor/bin/pint --test` (Manager e `tests/integration/tasks-smoke.php`) | passou |

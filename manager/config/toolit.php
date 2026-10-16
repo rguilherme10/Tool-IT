@@ -40,6 +40,30 @@ return [
         'gap_seconds' => (int) env('TOOLIT_ALERTS_GAP', 150),
     ],
 
+    'tasks' => [
+        // Tarefa não pega por nenhum Agent expira após este tempo.
+        'pending_ttl_minutes' => (int) env('TOOLIT_TASKS_PENDING_TTL', 30),
+
+        // Padrões; a política vigente fica em system_settings (tasks.service_allowlist / tasks.service_protected),
+        // editável só por quem tem settings.manage.
+        'service_allowlist' => ['Spooler', 'W32Time', 'BITS', 'wuauserv'],
+        'service_protected' => [
+            'RpcSs', 'DcomLaunch', 'LSM', 'SamSs', 'EventLog', 'BFE', 'mpssvc', 'WinDefend', 'CryptSvc', 'Winmgmt', 'ToolitAgent',
+        ],
+    ],
+
+    'transfers' => [
+        // Temporários e blobs de transferências são apagados após este prazo (os metadados ficam).
+        'retention_days' => (int) env('TOOLIT_TRANSFERS_RETENTION_DAYS', 7),
+        // Teto padrão de uma transferência (a política do grupo pode reduzir); 100 MiB.
+        'max_bytes' => 104857600,
+        // Tamanho do chunk do upload pelo navegador (1 MiB) e do trânsito Agent <-> Manager (2 MiB).
+        'browser_chunk_bytes' => 1048576,
+        'agent_chunk_bytes' => 2097152,
+        // Limite das rotas de transferência do Agent, por instalação (separado de toolit.agent.rate_limit_per_minute).
+        'rate_limit_per_minute' => (int) env('TOOLIT_TRANSFER_RATE_LIMIT', 600),
+    ],
+
     'audit' => [
         'retention_months' => 24,
     ],

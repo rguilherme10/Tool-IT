@@ -91,7 +91,7 @@ Reativação/substituição: token emitido com `replaces_endpoint_id` associa a 
   "current_user": "DOMINIO\\usuario" , "ip_addresses": ["10.0.0.5"],
   "pending_events": 0 }
 ```
-Resposta: `{ "server_time": "…", "config_version": 3, "tasks_available": true, "cancel_task_ids": [], "update_available": null }`
+Resposta: `{ "server_time": "…", "config_version": 3, "tasks_available": true, "cancel_task_ids": [], "update_available": null }` — `tasks_available` é real (há tarefa pronta para o claim) e `cancel_task_ids` lista as tarefas `running` com cancelamento pedido (§tasks).
 
 ### POST /inventory   (idempotente por `snapshot_id`; corpo ≤ 4 MiB)
 Cada seção traz seu estado de coleta (`ok | unavailable | error`); **seções omitidas não alteram nada**. Implementado e testado (`InventoryRequest`): campos fora da lista abaixo são descartados, textos sem caracteres de controle, limites por lista (software ≤ 5000 itens, interfaces ≤ 64, etc.).
@@ -127,23 +127,46 @@ Idempotência por `(endpoint, sample_id)`. Amostras mais antigas que a retençã
 ### POST /events   (lote)
 `{ "events":[ { "event_id":"uuid", "at":"…", "level":"error", "source":"System", "code":"7031", "message":"…(≤2 KiB)" } ] }`
 
-### GET /tasks/next?wait=25
-Long-poll (≤ 30 s). Faz *claim* atômico de **uma** tarefa disponível compatível. Resposta `200`:
+### GET /tasks/next?wait=0   (poll curto — ADR-021)
+**Sem long-poll**: a resposta é sempre imediata. `wait` é aceito por compatibilidade (inteiro 0–30, senão 422) e ignorado; o Agent envia `wait=0`. A query **entra na assinatura** (`QUERY` = `wait=0`); query diferente da assinada → 401. O Agent consulta a cada `TaskPollSeconds` (padrão 10 s, limites 5–300) e imediatamente quando o heartbeat traz `tasks_available: true`.
+Faz *claim* atômico (UPDATE condicional `state = available`) da tarefa disponível mais antiga do endpoint. No claim o Manager reconfere: endpoint ativo, instalação ativa, tarefa não expirada, aprovação presente se alto risco, e se criador/aprovador **ainda** têm as permissões (senão cancela a tarefa com `authorization_revoked` e tenta a próxima). Resposta `200` com **exatamente** 7 campos (`tests/contracts/task-next.json`):
 ```json
 { "task_id":"uuid","attempt_id":"uuid","type":"service.restart","params":{"name":"Spooler"},
-  "timeout_seconds":60,"lease_expires_at":"…","risk":"low","nonce":"…","expires_at":"…" }
+  "timeout_seconds":60,"lease_expires_at":"2026-10-15T12:01:30+00:00","risk":"medium" }
 ```
-`204` se nada disponível. Agent valida `type` contra seu catálogo local e `params` contra schema local; tipo desconhecido → resultado `rejected`.
+`params` é sempre objeto JSON (`{}` quando vazio). Lease = timeout do tipo + 30 s. `204` (sem corpo) se nada disponível. O Agent valida `type` contra o catálogo local e `params` contra o schema local; fora dele → resultado `rejected` sem executar. Tipos e schemas: [`task-types.md`](task-types.md).
 
 ### POST /tasks/{task_id}/progress  (opcional, renova lease)
-`{ "attempt_id":"…","percent":40 }`
+`{ "attempt_id":"…","percent":40 }` (`percent` opcional, 0–100) → `200 { "lease_expires_at":"…" }` (nova lease = agora + timeout + 30 s). Attempt que não é o vigente, já encerrado ou com lease vencida → `409 task.conflict`. Tarefa de outro endpoint/inexistente → `404 request.not_found`. **O Agent atual não envia `progress`** (os timeouts locais cabem na lease).
 
 ### POST /tasks/{task_id}/result
 ```json
 { "attempt_id":"uuid","status":"completed|failed|rejected|cancelled","exit_code":0,
-  "stdout":"…(≤16 KiB, truncado)","stderr":"…","truncated":false,"started_at":"…","finished_at":"…","duration_ms":1200,"error":null }
+  "stdout":"…","stderr":"…","truncated":false,"started_at":"…","finished_at":"…","duration_ms":1200,"error":null }
 ```
-`409 task.conflict` se `attempt_id` não for o vigente.
+Resposta `200 { "task_id":"…","state":"completed" }`. Semântica:
+- Só o `attempt_id` vigente, com lease válida, é aceito; outro → `409 task.conflict`. Reenvio **idêntico** (status, exit_code, stdout, stderr, error) de um attempt já encerrado → `200` com o estado atual (idempotente); divergente → 409.
+- stdout/stderr: aceitos até 64 KiB na validação, sanitizados (UTF-8 válido, sem caracteres de controle exceto `\n`/`\t`) e **cortados em 16 KiB** (fronteira de caractere) com `truncated = true`. `error` ≤ 255 caracteres.
+- `completed` → tarefa `completed`; `failed` e `rejected` → `failed`; `cancelled` → `cancelled`. Horários do Agent são informativos (descartados se fora de ±24 h do relógio do servidor); duração e lease usam só o relógio do servidor.
+- A auditoria registra só tamanhos da saída, nunca o conteúdo.
+
+### Cancelamento e revogação
+Tarefa `available`/`pending_approval` cancelada no painel vai direto a `cancelled`. Em `running`, o painel só grava `cancel_requested_at`; o heartbeat devolve o id em `cancel_task_ids` e o Agent cancela o `CancellationToken` do handler. Revogação (inclusive a feita por novo enrollment) e desativação do endpoint cancelam todas as tarefas abertas; reativar não as restaura. Tarefa não pega em 30 min (`toolit.tasks.pending_ttl_minutes`) expira por `tasks:expire` (agendado a cada minuto), que também fecha leases vencidas.
+
+### Transferências de arquivos (`file.send` / `file.fetch`, task 009)
+A tarefa traz só `params.transfer_id`; caminho e metadados vêm destas rotas, todas assinadas e escopadas ao endpoint da instalação. Elas só funcionam com a tarefa `file.*` **desta** transferência em `running` para o endpoint; senão a resposta é `409 transfer.conflict` (tarefa não pega, cancelada, expirada ou já concluída).
+
+| Rota | Corpo / resposta |
+|---|---|
+| `GET /transfers/{id}` | `200` com exatamente 10 chaves: `transfer_id, endpoint_id, direction, size, sha256, chunk_size, chunks_total, remote_path, overwrite, received_chunks` (contratos `tests/contracts/transfer-metadata.json` e `transfer-metadata-fetch.json`). `endpoint_id` é o mesmo uuid recebido no enroll; o Agent confere endpoint e direção. Na recuperação, antes do `begin`, `size`, `sha256` e `chunks_total` são `null`, e `sha256` é sempre `null`. |
+| `GET /transfers/{id}/chunks/{n}` (envio) | `200`, corpo binário `application/octet-stream` + cabeçalho `X-Chunk-Sha256` (hex minúsculo). Chunks de `chunk_size` (2 MiB) exceto o último. |
+| `PUT /transfers/{id}/chunks/{n}` (recuperação) | Corpo bruto `application/octet-stream` (senão `415`), ≤ 2,5 MiB (senão `413`, antes da assinatura). `X-Chunk-Sha256` é obrigatório: ausente ou divergente dá `422 transfer.chunk_hash` e nada é gravado. Reenvio idêntico é idempotente. → `200 {"chunks_received": int}` |
+| `POST /transfers/{id}/begin` (recuperação) | `{"size": int}` → `200 {"status","chunk_size","chunks_total"}`. Tamanho acima do `max_bytes` da política dá `422 transfer.too_large` e a transferência falha. Repetir com o mesmo tamanho mantém o que já chegou; com outro tamanho, recomeça. |
+| `POST /transfers/{id}/complete` | `{"sha256": hex64, "size": int}` → `200 {"status"}`. Hash ou tamanho divergente **não** é erro HTTP: `200 {"status":"failed"}` (bytes descartados). Parte faltando dá `409`. Reenvio idêntico após `completed` é idempotente. |
+
+- Erros: transferência de outro endpoint ou inexistente → `404 request.not_found`; estado ou direção inválidos → `409 transfer.conflict`; `n` fora do intervalo ou tamanho de chunk errado → `422 transfer.invalid`.
+- **Chame `complete` ANTES de enviar o `result` da tarefa.** Depois que a tarefa sai de `running`, um novo `complete` recebe `409`.
+- Limite próprio `agent-transfer`, por instalação: 600 req/min (`toolit.transfers.rate_limit_per_minute`, env `TOOLIT_TRANSFER_RATE_LIMIT`). Não consome o orçamento de 120 req/min das demais rotas.
 
 ### POST /keys/rotate
 `{ "new_public_key":"…" }` assinado com a chave atual; a antiga permanece válida por 5 min.

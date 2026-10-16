@@ -1,5 +1,6 @@
 using AgentToolit.Collectors;
 using AgentToolit.Core.Config;
+using AgentToolit.Core.Execution;
 using AgentToolit.Core.Services;
 
 namespace AgentToolit;
@@ -7,7 +8,9 @@ namespace AgentToolit;
 /// <summary>Cascas finas de BackgroundService: toda a lógica está em serviços testáveis.</summary>
 internal static class Loop
 {
-    public static async Task RunAsync(Func<CancellationToken, Task<TimeSpan>> tick, TimeProvider time, ILogger logger, string name, CancellationToken ct)
+    /// <param name="wait">Espera entre ciclos; padrão <c>Task.Delay</c>. O worker de tarefas usa a do coordenador (acorda no heartbeat).</param>
+    public static async Task RunAsync(Func<CancellationToken, Task<TimeSpan>> tick, TimeProvider time, ILogger logger, string name, CancellationToken ct,
+        Func<TimeSpan, CancellationToken, Task>? wait = null)
     {
         while (!ct.IsCancellationRequested)
         {
@@ -29,7 +32,7 @@ internal static class Loop
 
             try
             {
-                await Task.Delay(delay, time, ct);
+                await (wait is null ? Task.Delay(delay, time, ct) : wait(delay, ct));
             }
             catch (OperationCanceledException)
             {
@@ -43,6 +46,13 @@ public sealed class HeartbeatWorker(HeartbeatService service, TimeProvider time,
 {
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
         Loop.RunAsync(service.TickAsync, time, logger, "heartbeat", stoppingToken);
+}
+
+/// <summary>Poll de tarefas: uma por vez; entre ciclos espera o intervalo ou o aviso do heartbeat (tasks_available).</summary>
+public sealed class TaskWorker(TaskPoller poller, TaskCoordinator coordinator, TimeProvider time, ILogger<TaskWorker> logger) : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
+        Loop.RunAsync(poller.TickAsync, time, logger, "tasks", stoppingToken, coordinator.WaitAsync);
 }
 
 public sealed class SenderWorker(SenderService service, TimeProvider time, ILogger<SenderWorker> logger) : BackgroundService

@@ -151,7 +151,7 @@ internal static partial class ServiceCommands
         try
         {
             File.AppendAllText(Path.Combine(paths.LogDirectory, "install.log"),
-                $"{DateTimeOffset.UtcNow:yyyy-MM-ddTHH:mm:ssZ} {LogRedactor.Redact(message)}{Environment.NewLine}");
+                string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{DateTimeOffset.UtcNow:yyyy-MM-ddTHH:mm:ssZ} {LogRedactor.Redact(message)}{Environment.NewLine}"));
         }
         catch (IOException)
         {
