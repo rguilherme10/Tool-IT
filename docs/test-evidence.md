@@ -109,3 +109,9 @@ Sessão **sem Administrador**. Tudo abaixo foi observado; a instalação real do
 
 ### Não validado
 `msiexec /i` de verdade (UI e silencioso), criação/início do serviço pelo SCM, recuperação automática após falha, reinício do PC, atualização para versão maior, desinstalação, rollback, GPO/`.mst`, comportamento do enroll sob a conta SYSTEM, e a aparência real do diálogo (só as tabelas foram inspecionadas).
+
+## Tarefas remotas — painel (Tarefas, Aprovações, detalhe) — 2026-10-15
+| Verificação | Resultado |
+|---|---|
+| `TasksUiTest` (Manager) | 26 testes / 244 asserções: aba só com `tasks.view`, formulário só com tipos permitidos, idempotência (mesma chave em outro endpoint/tipo é recusada), 13 parâmetros hostis → erro de validação sem criar tarefa, criador sem botão Aprovar e POST forçado vira erro, aprovação por outro admin auditada, BOLA (grupo A × grupo B → 404 em criar/ver/cancelar/aprovar/rejeitar), operador não aprova (403), stdout/params com HTML escapados, sem PowerShell/arquivos/tela na UI, paginação 20. Suíte completa do Manager: **571 aprovados / 0 falhas** |
+| Navegador embutido (SQLite descartável com dados fictícios, apagado depois) | Vistos: Aprovações, aba Tarefas (formulários, lista, 2ª página), detalhe com stdout `<script>` (0 `<script>` no DOM, texto literal). 375 px sem overflow da página (tabela rola dentro do cartão). **Ressalva:** `npm run build` falha neste ambiente (rollup nativo); o CSS compilado é antigo e sem algumas classes novas, então o layout foi visto com o Tailwind CDN v3 injetado como aproximação. Refazer a conferência com o build real. |

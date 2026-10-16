@@ -10,6 +10,7 @@ use App\Http\Controllers\Web\EndpointManagementController;
 use App\Http\Controllers\Web\EnrollmentTokenController;
 use App\Http\Controllers\Web\GroupController;
 use App\Http\Controllers\Web\SecurityController;
+use App\Http\Controllers\Web\TaskController;
 use App\Http\Controllers\Web\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -28,6 +29,14 @@ Route::middleware(['auth', 'active'])->group(function () {
 
         Route::get('/alerts', [AlertController::class, 'index'])->name('alerts.index');
         Route::post('/alerts/{uuid}/acknowledge', [AlertController::class, 'acknowledge'])->whereUuid('uuid')->name('alerts.acknowledge');
+        Route::post('/endpoints/{uuid}/tasks', [TaskController::class, 'store'])->whereUuid('uuid')->name('tasks.store');
+        // /tasks/approvals ANTES de /tasks/{task}.
+        Route::get('/tasks/approvals', [TaskController::class, 'approvals'])->name('tasks.approvals');
+        Route::get('/tasks/{task}', [TaskController::class, 'show'])->whereUuid('task')->name('tasks.show');
+        Route::post('/tasks/{task}/cancel', [TaskController::class, 'cancel'])->whereUuid('task')->name('tasks.cancel');
+        Route::post('/tasks/{task}/approve', [TaskController::class, 'approve'])->whereUuid('task')->name('tasks.approve');
+        Route::post('/tasks/{task}/reject', [TaskController::class, 'reject'])->whereUuid('task')->name('tasks.reject');
+
         Route::resource('alert-rules', AlertRuleController::class)->except('show')->parameters(['alert-rules' => 'rule']);
 
         Route::get('/audit', [AuditController::class, 'index'])->name('audit.index');

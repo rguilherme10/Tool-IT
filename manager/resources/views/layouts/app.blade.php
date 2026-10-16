@@ -19,6 +19,9 @@
                 @can('alerts.view')
                     <a href="{{ route('alerts.index') }}" class="hover:text-slate-900">Alertas</a>
                 @endcan
+                @can('tasks.approve')
+                    <a href="{{ route('tasks.approvals') }}" class="hover:text-slate-900">Aprovações</a>
+                @endcan
                 @can('settings.manage')
                     <a href="{{ route('alert-rules.index') }}" class="hover:text-slate-900">Regras de alerta</a>
                     <a href="{{ route('groups.index') }}" class="hover:text-slate-900">Grupos</a>

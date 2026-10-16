@@ -11,10 +11,12 @@ use App\Models\EndpointGroup;
 use App\Models\EndpointInventory;
 use App\Models\InventorySnapshot;
 use App\Models\NetworkInterface;
+use App\Models\RemoteTask;
 use App\Models\SoftwareItem;
 use App\Support\Authorization\AccessResolver;
 use App\Support\Inventory\InventoryDiff;
 use App\Support\Metrics\MetricSeries;
+use App\Support\Tasks\TaskForm;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -86,11 +88,14 @@ class EndpointController extends Controller
         if ($this->access->can($user, Permission::AlertsView, $endpoint)) {
             $tabs += ['alerts' => 'Alertas'];
         }
+        if ($this->access->can($user, Permission::TasksView, $endpoint)) {
+            $tabs += ['tasks' => 'Tarefas'];
+        }
 
         $tab = (string) $request->query('tab', 'details');
         if (! isset($tabs[$tab])) {
             // Aba conhecida mas sem permissão = 403; qualquer outro valor cai em "Detalhes".
-            abort_if(in_array($tab, ['software', 'network', 'metrics', 'alerts'], true), 403);
+            abort_if(in_array($tab, ['software', 'network', 'metrics', 'alerts', 'tasks'], true), 403);
             $tab = 'details';
         }
 
@@ -109,6 +114,7 @@ class EndpointController extends Controller
             'history' => $this->historyData($endpoint, $sensitive),
             'metrics' => $this->metricsData($request, $endpoint),
             'alerts' => ['endpointAlerts' => $this->endpointAlerts($endpoint)],
+            'tasks' => $this->tasksData($request, $endpoint),
             default => [
                 'audit' => $this->access->canGlobally($user, Permission::AuditView)
                     ? DB::table('audit_logs')->where('endpoint_id', $endpoint->id)->orderByDesc('seq')->limit(20)->get()
@@ -121,6 +127,19 @@ class EndpointController extends Controller
                 'canUngroup' => $this->access->canForGroup($user, Permission::EndpointsManage, null),
             ],
         });
+    }
+
+    /** @return array<string, mixed> */
+    private function tasksData(Request $request, Endpoint $endpoint): array
+    {
+        $tasks = RemoteTask::where('endpoint_id', $endpoint->id)->with('creator:id,name')
+            ->orderByDesc('id')->paginate(20)->withQueryString();
+        $tasks->getCollection()->each->setRelation('endpoint', $endpoint);   // evita uma consulta por linha
+
+        return [
+            'tasks' => $tasks,
+            'creatableTypes' => TaskForm::creatableTypes($request->user(), $endpoint, $this->access),
+        ];
     }
 
     /** Ativos + os 20 resolvidos mais recentes. */
