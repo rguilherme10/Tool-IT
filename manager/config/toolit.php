@@ -52,6 +52,16 @@ return [
         ],
     ],
 
+    'transfers' => [
+        // Temporários e blobs de transferências são apagados após este prazo (os metadados ficam).
+        'retention_days' => (int) env('TOOLIT_TRANSFERS_RETENTION_DAYS', 7),
+        // Teto padrão de uma transferência (a política do grupo pode reduzir); 100 MiB.
+        'max_bytes' => 104857600,
+        // Tamanho do chunk do upload pelo navegador (1 MiB) e do trânsito Agent <-> Manager (2 MiB).
+        'browser_chunk_bytes' => 1048576,
+        'agent_chunk_bytes' => 2097152,
+    ],
+
     'audit' => [
         'retention_months' => 24,
     ],

@@ -1,0 +1,1368 @@
+{
+    "directories": [
+        {
+            "path": "C:\\ProgramData\\Toolit\\Inbox",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\Dados\\Relat\u00f3rios",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\Dados\\Relato\u0301rios",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "c:\\dados\\inbox",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\Program Files\\Toolit",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\Dados\\a.b\\c-d_e (1)\\[x]",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\Dados\\ leading space\\x",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\Dados\\D'Agua & Cia, #1+2=3@x!",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\\ccccccccccccccc",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\Dados\\\u0430bc",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\Dados\\CONSOLE\\NULO\\COM10\\LPT0\\AUXILIAR",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "",
+            "ok": false,
+            "why": "empty"
+        },
+        {
+            "path": "..\\x",
+            "ok": false,
+            "why": "relative"
+        },
+        {
+            "path": "a\\b",
+            "ok": false,
+            "why": "relative"
+        },
+        {
+            "path": "C:",
+            "ok": false,
+            "why": "relative"
+        },
+        {
+            "path": "C:a\\b",
+            "ok": false,
+            "why": "relative"
+        },
+        {
+            "path": "\\a\\b",
+            "ok": false,
+            "why": "relative"
+        },
+        {
+            "path": "/",
+            "ok": false,
+            "why": "forward_slash"
+        },
+        {
+            "path": "/etc/passwd",
+            "ok": false,
+            "why": "forward_slash"
+        },
+        {
+            "path": "C:/Dados/Inbox",
+            "ok": false,
+            "why": "forward_slash"
+        },
+        {
+            "path": "C:\\Dados/Inbox",
+            "ok": false,
+            "why": "forward_slash"
+        },
+        {
+            "path": "C:\\a\\..\\b",
+            "ok": false,
+            "why": "dotdot"
+        },
+        {
+            "path": "C:\\a\\.\\b",
+            "ok": false,
+            "why": "dotdot"
+        },
+        {
+            "path": "C:\\..\\x",
+            "ok": false,
+            "why": "dotdot"
+        },
+        {
+            "path": "C:\\a\\b\\..",
+            "ok": false,
+            "why": "dotdot"
+        },
+        {
+            "path": "C:\\a\\.",
+            "ok": false,
+            "why": "dotdot"
+        },
+        {
+            "path": "\\\\srv\\share\\x",
+            "ok": false,
+            "why": "unc"
+        },
+        {
+            "path": "\\\\srv",
+            "ok": false,
+            "why": "unc"
+        },
+        {
+            "path": "\\\\?\\C:\\x",
+            "ok": false,
+            "why": "device_path"
+        },
+        {
+            "path": "\\\\.\\pipe\\x",
+            "ok": false,
+            "why": "device_path"
+        },
+        {
+            "path": "\\\\?\\UNC\\srv\\share",
+            "ok": false,
+            "why": "device_path"
+        },
+        {
+            "path": "\\??\\C:\\x",
+            "ok": false,
+            "why": "relative"
+        },
+        {
+            "path": "C:\\a\\b:ads",
+            "ok": false,
+            "why": "ads"
+        },
+        {
+            "path": "C:\\a\\b.txt:Zone.Identifier",
+            "ok": false,
+            "why": "ads"
+        },
+        {
+            "path": "C:\\a:b\\c",
+            "ok": false,
+            "why": "ads"
+        },
+        {
+            "path": "C:\\a\\*",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "path": "C:\\a\\b?",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "path": "C:\\a\\<x>",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "path": "C:\\a\\\"x\"",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "path": "C:\\a\\a|b",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "path": "C:\\a\\\ud83d\ude00",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "path": "C:\\a\\x$y",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "path": "C:\\a\\CON",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "path": "C:\\a\\nul.txt",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "path": "C:\\a\\COM1\\b",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "path": "C:\\a\\com9",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "path": "C:\\a\\Lpt1.log",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "path": "C:\\a\\AUX.tar.gz",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "path": "C:\\a\\PRN ",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "path": "C:\\a\\CON .txt",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "path": "C:\\PROGRA~1\\x",
+            "ok": false,
+            "why": "short_name"
+        },
+        {
+            "path": "C:\\Dados\\RELATO~1.TXT",
+            "ok": false,
+            "why": "short_name"
+        },
+        {
+            "path": "C:\\a\\x~12",
+            "ok": false,
+            "why": "short_name"
+        },
+        {
+            "path": "C:\\a\\x~y",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "path": "C:\\a\\b.",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "path": "C:\\a\\b ",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "path": "C:\\a.\\b",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "path": "C:\\a\\b \\c",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "path": "C:\\a\\...\\b",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "path": "C:\\a\\\\b",
+            "ok": false,
+            "why": "empty_component"
+        },
+        {
+            "path": "C:\\\\a",
+            "ok": false,
+            "why": "empty_component"
+        },
+        {
+            "path": "C:\\a\\b\\\\",
+            "ok": false,
+            "why": "empty_component"
+        },
+        {
+            "path": "C:\\a\\",
+            "ok": false,
+            "why": "trailing_separator"
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\",
+            "ok": false,
+            "why": "trailing_separator"
+        },
+        {
+            "path": "C:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\\bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\\cccccccccccccccc",
+            "ok": false,
+            "why": "too_long"
+        },
+        {
+            "path": "C:\\aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "ok": false,
+            "why": "too_long"
+        },
+        {
+            "path": "C:\\\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00",
+            "ok": false,
+            "why": "too_long"
+        },
+        {
+            "path": "C:\\a\\x\u202ey",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\x\u200by",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\x\u200dy",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\x\ufeffy",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\x\u2066y",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\x\u00ady",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\x\u0007y",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\x\ty",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\x\ny",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\xy",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\x\u0085y",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\x\u2028y",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\x\u0000y",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "path": "C:\\a\\x\uff0fy",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "path": "C:\\a\\x\u2215y",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "path": "C:\\a\\x\u2044y",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "path": "C:\\a\\x\uff3cy",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "path": "C:\\a\\x\u2216y",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "path": "C:\\a\\x\u29f5y",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "path": "C:\\a\\x\uff1ay",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "path": "C:\\a\\x\ufe55y",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "path": "C:\\a\\x\u2024y",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "path": "C:\\a\\x\uff0e\uff0e\\y",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "path": "C:\\a\\\u2025\\y",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "path": "C:\uff3ca",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "path": "C\uff1a\\a",
+            "ok": false,
+            "why": "homoglyph"
+        }
+    ],
+    "files": [
+        {
+            "name": "relat\u00f3rio final (1).pdf",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "relato\u0301rio final (1).pdf",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "a.txt",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "a",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "a..b",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": ".hidden",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": ".exe",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "a.pdf.exe",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "A.ExE",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "console.txt",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "nulo.txt",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "COM0.txt",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "COM10.txt",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "a,b&c.txt",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": " leading.txt",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "re\u0430l.pdf",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "",
+            "ok": false,
+            "why": "empty"
+        },
+        {
+            "name": ".",
+            "ok": false,
+            "why": "dotdot"
+        },
+        {
+            "name": "..",
+            "ok": false,
+            "why": "dotdot"
+        },
+        {
+            "name": "...",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "name": "a.",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "name": "a ",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "name": "   ",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "name": "a.exe.",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "name": "a.exe ",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "name": "a/b",
+            "ok": false,
+            "why": "separator"
+        },
+        {
+            "name": "a\\b",
+            "ok": false,
+            "why": "separator"
+        },
+        {
+            "name": "..\\x",
+            "ok": false,
+            "why": "separator"
+        },
+        {
+            "name": "C:\\x",
+            "ok": false,
+            "why": "separator"
+        },
+        {
+            "name": "a:b",
+            "ok": false,
+            "why": "ads"
+        },
+        {
+            "name": "a.txt:evil",
+            "ok": false,
+            "why": "ads"
+        },
+        {
+            "name": "CON",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "name": "con",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "name": "CON.txt",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "name": "nul.txt",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "name": "com1",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "name": "COM9.tar.gz",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "name": "LPT9.log",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "name": "Aux",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "name": "PRN.",
+            "ok": false,
+            "why": "trailing_dot_space"
+        },
+        {
+            "name": "CON .txt",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "name": "\uff23\uff2f\uff2e.txt",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "name": "PROGRA~1",
+            "ok": false,
+            "why": "short_name"
+        },
+        {
+            "name": "relato~1.txt",
+            "ok": false,
+            "why": "short_name"
+        },
+        {
+            "name": "a~b.txt",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+            "ok": false,
+            "why": "too_long"
+        },
+        {
+            "name": "\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00\ud835\udc00",
+            "ok": false,
+            "why": "too_long"
+        },
+        {
+            "name": "a\u202etxt.exe",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "name": "a.e\u200bxe",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "name": "a\u200db",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "name": "a\u0007b",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "name": "a\tb",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "name": "a\u0000b",
+            "ok": false,
+            "why": "control_or_format"
+        },
+        {
+            "name": "a\uff0fb",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "name": "a\u2215b",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "name": "a\uff1ab",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "name": "a\u2024exe",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "name": "a\uff0eexe",
+            "ok": false,
+            "why": "homoglyph"
+        },
+        {
+            "name": "a*.txt",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "name": "a?.txt",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "name": "a<b>.txt",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "name": "a\"b\".txt",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "name": "a|b.txt",
+            "ok": false,
+            "why": "invalid_char"
+        },
+        {
+            "name": "a\ud83d\ude00.txt",
+            "ok": false,
+            "why": "invalid_char"
+        }
+    ],
+    "inside": [
+        {
+            "path": "C:\\Dados\\Inbox\\sub\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": true
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": true
+        },
+        {
+            "path": "C:\\Dados\\Inbox",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": true
+        },
+        {
+            "path": "C:\\Dados\\InboxX",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\InboxX\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox2\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Outbox\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "c:\\dados\\INBOX\\A.TXT",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": true
+        },
+        {
+            "path": "C:\\DADOS\\inbox\\sub",
+            "dirs": [
+                "c:\\dados\\Inbox"
+            ],
+            "ok": true
+        },
+        {
+            "path": "D:\\Dados\\Inbox\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\a.txt",
+            "dirs": [],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\a.txt",
+            "dirs": [
+                "C:\\Outro",
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": true
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\a.txt",
+            "dirs": [
+                "C:\\Outro",
+                "C:\\Mais"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\..\\Secret\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\sub\\..\\..\\Secret",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\.\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\a.txt:evil",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\CON",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\PROGRA~1\\a",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\sub\uff0fa",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\sub\\x\u202ey",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "\\\\srv\\share\\Dados\\Inbox\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "\\\\srv\\share\\x",
+            "dirs": [
+                "\\\\srv\\share"
+            ],
+            "ok": false
+        },
+        {
+            "path": "\\\\?\\C:\\Dados\\Inbox\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:/Dados/Inbox/a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "Dados\\Inbox\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\a.txt",
+            "dirs": [
+                "..\\x"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox\\"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\a.txt",
+            "dirs": [
+                "\\\\srv\\share"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\a.txt",
+            "dirs": [
+                "C:\\Dados\\..\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\x\\a.txt",
+            "dirs": [
+                "C:\\"
+            ],
+            "ok": true
+        },
+        {
+            "path": "C:\\",
+            "dirs": [
+                "C:\\"
+            ],
+            "ok": true
+        },
+        {
+            "path": "D:\\x",
+            "dirs": [
+                "C:\\"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Relato\u0301rios\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Relat\u00f3rios"
+            ],
+            "ok": true
+        },
+        {
+            "path": "C:\\Dados\\Relat\u00f3rios\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Relato\u0301rios"
+            ],
+            "ok": true
+        },
+        {
+            "path": "C:\\Dados\\Relat\u00f3riosX\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Relato\u0301rios"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\RELAT\u00d3RIOS\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Relat\u00f3rios"
+            ],
+            "ok": true
+        }
+    ],
+    "blocked_extensions": [
+        {
+            "name": "a.exe",
+            "blocked": true
+        },
+        {
+            "name": "a.EXE",
+            "blocked": true
+        },
+        {
+            "name": "A.ExE",
+            "blocked": true
+        },
+        {
+            "name": "a.exe.",
+            "blocked": true
+        },
+        {
+            "name": "a.exe ",
+            "blocked": true
+        },
+        {
+            "name": "a.exe. .",
+            "blocked": true
+        },
+        {
+            "name": "a.exe  ",
+            "blocked": true
+        },
+        {
+            "name": "a. exe",
+            "blocked": true
+        },
+        {
+            "name": "a.pdf.exe",
+            "blocked": true
+        },
+        {
+            "name": "a.exe.txt",
+            "blocked": true
+        },
+        {
+            "name": "a.txt.exe",
+            "blocked": true
+        },
+        {
+            "name": "a.b.c.dll",
+            "blocked": true
+        },
+        {
+            "name": "a.exe.pdf.exe",
+            "blocked": true
+        },
+        {
+            "name": ".exe",
+            "blocked": true
+        },
+        {
+            "name": ".EXE",
+            "blocked": true
+        },
+        {
+            "name": "..exe",
+            "blocked": true
+        },
+        {
+            "name": ".exe.",
+            "blocked": true
+        },
+        {
+            "name": "relatorio.pdf.exe",
+            "blocked": true
+        },
+        {
+            "name": "a.dll",
+            "blocked": true
+        },
+        {
+            "name": "a.bat",
+            "blocked": true
+        },
+        {
+            "name": "a.cmd",
+            "blocked": true
+        },
+        {
+            "name": "a.ps1",
+            "blocked": true
+        },
+        {
+            "name": "a.psm1",
+            "blocked": true
+        },
+        {
+            "name": "a.vbs",
+            "blocked": true
+        },
+        {
+            "name": "a.vbe",
+            "blocked": true
+        },
+        {
+            "name": "a.js",
+            "blocked": true
+        },
+        {
+            "name": "a.jse",
+            "blocked": true
+        },
+        {
+            "name": "a.wsf",
+            "blocked": true
+        },
+        {
+            "name": "a.msi",
+            "blocked": true
+        },
+        {
+            "name": "a.msp",
+            "blocked": true
+        },
+        {
+            "name": "a.scr",
+            "blocked": true
+        },
+        {
+            "name": "a.com",
+            "blocked": true
+        },
+        {
+            "name": "a.pif",
+            "blocked": true
+        },
+        {
+            "name": "a.lnk",
+            "blocked": true
+        },
+        {
+            "name": "a.hta",
+            "blocked": true
+        },
+        {
+            "name": "a.jar",
+            "blocked": true
+        },
+        {
+            "name": "a.cpl",
+            "blocked": true
+        },
+        {
+            "name": "a.reg",
+            "blocked": true
+        },
+        {
+            "name": "a.sys",
+            "blocked": true
+        },
+        {
+            "name": "a.drv",
+            "blocked": true
+        },
+        {
+            "name": "a.e\u200bxe",
+            "blocked": true
+        },
+        {
+            "name": "a.ex\u202ee",
+            "blocked": true
+        },
+        {
+            "name": "a.\uff45\uff58\uff45",
+            "blocked": true
+        },
+        {
+            "name": "a\uff0eexe",
+            "blocked": true
+        },
+        {
+            "name": "a\u2024exe",
+            "blocked": true
+        },
+        {
+            "name": "a.pdf",
+            "blocked": false
+        },
+        {
+            "name": "exe",
+            "blocked": false
+        },
+        {
+            "name": "a",
+            "blocked": false
+        },
+        {
+            "name": "",
+            "blocked": false
+        },
+        {
+            "name": "a.",
+            "blocked": false
+        },
+        {
+            "name": "a. ",
+            "blocked": false
+        },
+        {
+            "name": "a.txt",
+            "blocked": false
+        },
+        {
+            "name": "a.exe2",
+            "blocked": false
+        },
+        {
+            "name": "a.exex",
+            "blocked": false
+        },
+        {
+            "name": "a.sexe",
+            "blocked": false
+        },
+        {
+            "name": "exe.txt",
+            "blocked": false
+        },
+        {
+            "name": "a.zip",
+            "blocked": false
+        },
+        {
+            "name": "a.7z",
+            "blocked": false
+        },
+        {
+            "name": "a.docx",
+            "blocked": false
+        },
+        {
+            "name": "a.xlsx",
+            "blocked": false
+        },
+        {
+            "name": "a.json",
+            "blocked": false
+        },
+        {
+            "name": "a.jsx",
+            "blocked": false
+        },
+        {
+            "name": "a.comp",
+            "blocked": false
+        },
+        {
+            "name": "js",
+            "blocked": false
+        },
+        {
+            "name": "relat\u00f3rio.pdf",
+            "blocked": false
+        },
+        {
+            "name": "com",
+            "blocked": false
+        },
+        {
+            "name": "a.tar.gz",
+            "blocked": false
+        }
+    ]
+}
