@@ -13,7 +13,7 @@ use Illuminate\Validation\ValidationException;
  */
 final class TaskCatalog
 {
-    private const SERVICE_NAME_PATTERN = '/^[A-Za-z0-9_.$-]{1,128}$/';
+    private const SERVICE_NAME_PATTERN = '/^[A-Za-z0-9_.$-]{1,128}\z/'; // \z (e não $): "$" aceitaria um "\n" final
 
     private const SERVICE_TYPES = ['service.start', 'service.stop', 'service.restart'];
 

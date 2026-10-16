@@ -52,7 +52,7 @@ class TaskCatalogTest extends TestCase
 
     public function test_rejects_hostile_service_names(): void
     {
-        foreach (['a b', 'a;b', '../x', str_repeat('a', 257), '', 'a|b', "a\nb", str_repeat('a', 129)] as $name) {
+        foreach (['a b', 'a;b', '../x', str_repeat('a', 257), '', 'a|b', "a\nb", str_repeat('a', 129), "Spooler\n", "RpcSs\n", "RpcSs\r\n", "Spooler\r"] as $name) {
             $this->expectsValidationFailure(
                 fn () => TaskCatalog::validate('service.start', ['name' => $name]),
                 'nome '.json_encode($name)
@@ -95,7 +95,7 @@ class TaskCatalogTest extends TestCase
     public function test_protected_service_is_rejected_for_stop_and_restart(): void
     {
         foreach (['service.stop', 'service.restart'] as $type) {
-            foreach (['RpcSs', 'rpcss', 'WinDefend'] as $name) {
+            foreach (['RpcSs', 'rpcss', 'WinDefend', "RpcSs\n", "RpcSs\r\n"] as $name) {
                 $this->expectsValidationFailure(fn () => TaskCatalog::validate($type, ['name' => $name]), "$type $name");
             }
         }
