@@ -31,9 +31,114 @@
             "why": "ok"
         },
         {
-            "path": "C:\\Dados\\a.b\\c-d_e (1)\\[x]",
+            "path": "C:\\Dados\\a.b\\c-d_e (1)\\x2",
             "ok": true,
             "why": "ok"
+        },
+        {
+            "path": "C:\\Dados\\\u00b2x",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "path": "C:\\Dados\\[x]",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\a&b",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\a,b",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\a'b",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\a#b",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\a@b",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\a=b",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\a+b",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\a!b",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\a{b}",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\a%b",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\a;b",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\a^b",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\xe\u0301ax\u0301",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\\u212ailo",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\\u212b",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\\u2126",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "path": "C:\\Dados\\COM\u00b9",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "path": "C:\\Dados\\LPT\u00b2.txt",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "path": "C:\\Dados\\COM\u00b3",
+            "ok": false,
+            "why": "reserved"
         },
         {
             "path": "C:\\Dados\\ leading space\\x",
@@ -41,7 +146,7 @@
             "why": "ok"
         },
         {
-            "path": "C:\\Dados\\D'Agua & Cia, #1+2=3@x!",
+            "path": "C:\\Dados\\D-Agua_e (Cia) 1.2",
             "ok": true,
             "why": "ok"
         },
@@ -193,37 +298,37 @@
         {
             "path": "C:\\a\\*",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "path": "C:\\a\\b?",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "path": "C:\\a\\<x>",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "path": "C:\\a\\\"x\"",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "path": "C:\\a\\a|b",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "path": "C:\\a\\\ud83d\ude00",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "path": "C:\\a\\x$y",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "path": "C:\\a\\CON",
@@ -283,7 +388,7 @@
         {
             "path": "C:\\a\\x~y",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "path": "C:\\a\\b.",
@@ -548,9 +653,114 @@
             "why": "ok"
         },
         {
-            "name": "a,b&c.txt",
+            "name": "a-b_c (1).2.txt",
             "ok": true,
             "why": "ok"
+        },
+        {
+            "name": "a\u00b2.txt",
+            "ok": true,
+            "why": "ok"
+        },
+        {
+            "name": "a&b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a[1].txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a]b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a'b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a,b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a@b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a#b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a=b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a+b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a!b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a{b}.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a%b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a$b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a;b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "a^b.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "x\u0301.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "\u212ailo.txt",
+            "ok": false,
+            "why": "char_not_allowed"
+        },
+        {
+            "name": "COM\u00b9",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "name": "com\u00b2.log",
+            "ok": false,
+            "why": "reserved"
+        },
+        {
+            "name": "LPT\u00b3",
+            "ok": false,
+            "why": "reserved"
         },
         {
             "name": " leading.txt",
@@ -715,7 +925,7 @@
         {
             "name": "a~b.txt",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "name": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
@@ -785,32 +995,32 @@
         {
             "name": "a*.txt",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "name": "a?.txt",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "name": "a<b>.txt",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "name": "a\"b\".txt",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "name": "a|b.txt",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         },
         {
             "name": "a\ud83d\ude00.txt",
             "ok": false,
-            "why": "invalid_char"
+            "why": "char_not_allowed"
         }
     ],
     "inside": [
@@ -1091,6 +1301,83 @@
             "path": "C:\\Dados\\RELAT\u00d3RIOS\\a.txt",
             "dirs": [
                 "C:\\Dados\\Relat\u00f3rios"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\\u00c9den\\a",
+            "dirs": [
+                "C:\\Dados\\\u00e9den"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\\u00e9den\\a",
+            "dirs": [
+                "C:\\Dados\\\u00c9den"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\RELAT\u00f3RIOS\\A.TXT",
+            "dirs": [
+                "C:\\Dados\\Relat\u00f3rios"
+            ],
+            "ok": true
+        },
+        {
+            "path": "C:\\Dados\\\u0131nbox\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\\u0131nbox",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\a.txt",
+            "dirs": [
+                "C:\\Dados\\\u0131nbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dado\u017f\\Inbox\\a.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\\u212ailo\\a.txt",
+            "dirs": [
+                "C:\\Dados\\kilo"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\kilo\\a.txt",
+            "dirs": [
+                "C:\\Dados\\\u212ailo"
+            ],
+            "ok": false
+        },
+        {
+            "path": "C:\\Dados\\KILO\\a.txt",
+            "dirs": [
+                "C:\\Dados\\kilo"
+            ],
+            "ok": true
+        },
+        {
+            "path": "C:\\Dados\\Inbox\\\u00e9.txt",
+            "dirs": [
+                "C:\\Dados\\Inbox"
             ],
             "ok": true
         }

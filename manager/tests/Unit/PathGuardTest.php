@@ -83,6 +83,29 @@ class PathGuardTest extends TestCase
         $this->assertSame($case['blocked'], PathGuard::hasBlockedExtension($case['name']), json_encode($case['name']));
     }
 
+    public function test_inside_folds_case_for_ascii_only(): void
+    {
+        $dirs = ['C:\\Dados\\Inbox'];
+        $this->assertTrue(PathGuard::isInside('c:\\DADOS\\inbox\\a.txt', $dirs));
+        // ı (U+0131), ſ (U+017F) e o Kelvin (U+212A) NÃO equivalem a I, S, K no NTFS.
+        $this->assertFalse(PathGuard::isInside("C:\\Dados\\\u{0131}nbox\\a.txt", $dirs));
+        $this->assertFalse(PathGuard::isInside("C:\\Dado\u{017F}\\Inbox\\a.txt", $dirs));
+        $this->assertFalse(PathGuard::isInside("C:\\Dados\\\u{212A}ilo\\a.txt", ['C:\\Dados\\kilo']));
+        // Não ASCII é comparado exato: "É" x "é" é recusado (lado seguro).
+        $this->assertFalse(PathGuard::isInside("C:\\Dados\\\u{00C9}den\\a", ["C:\\Dados\\\u{00E9}den"]));
+        $this->assertTrue(PathGuard::isInside("C:\\DADOS\\\u{00E9}den\\a", ["C:\\Dados\\\u{00E9}den"]));
+    }
+
+    public function test_allowed_characters_are_only_letters_digits_space_and_dot_dash_underscore_parentheses(): void
+    {
+        foreach (str_split('[]&+,\'#@!={}%$;^~') as $char) {
+            $this->assertNotNull(PathGuard::validateFileName("a{$char}b.txt"), $char);
+            $this->assertNotNull(PathGuard::validateDirectory("C:\\a{$char}b"), $char);
+        }
+        $this->assertNull(PathGuard::validateFileName('Relatório (final)-2_v1.0 ok.txt'));
+        $this->assertNull(PathGuard::validateFileName("relato\u{0301}rio.txt"));   // NFD compõe em NFC
+    }
+
     public function test_vector_covers_every_section_with_enough_cases(): void
     {
         $vector = self::vector();

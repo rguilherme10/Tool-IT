@@ -14,15 +14,18 @@ use Normalizer;
  *
  * Decisões (todas fixadas no vetor):
  *  - Só barra invertida; "/" é recusada. Separador final é recusado (exceto na raiz "X:\").
- *  - Letras (\p{L}), marcas (\p{M}, para nomes em NFD), dígitos (\p{Nd}), espaço e ". - _ ( ) [ ] & + , ' # @ ! ="
- *    são permitidos num componente; todo o resto é "invalid_char" ("~" só vale como 8.3 -> "short_name").
+ *  - Após NFC, um componente só pode ter letras (\p{L}), dígitos (\p{N}), espaço e ". - _ ( )"; todo o resto é
+ *    "char_not_allowed" (inclui marcas sem forma composta, colchetes, & + , ' # @ ! = $ % ^ { } e ;. O "~" só vale
+ *    como 8.3 -> "short_name").
  *  - Nomes em NFD são aceitos; quem grava deve usar normalizeName() (NFC). isInside() e join() normalizam.
  *  - Comprimentos em unidades UTF-16 (como o Windows conta): total <= 260, componente <= 120.
  *  - Homógrafos: qualquer caractere não ASCII cujo NFKC contenha "/ \ : ." ou que esteja numa lista explícita
  *    (barras que o NFKC não mapeia, como U+2215). Letras de outros alfabetos parecidas com latinas (cirílico)
  *    NÃO são tratadas: não permitem escapar de diretório.
- *  - Comparação sem diferenciar maiúsculas usa maiúsculas "simples" Unicode; nomes reservados e extensões usam
- *    NFKC + comparação ASCII.
+ *  - Comparação sem diferenciar maiúsculas dobra SÓ A-Z/a-z; todo caractere não ASCII é comparado exato (após NFC).
+ *    É conservador (recusa "É" x "é" do mesmo diretório real) e evita que ı, ſ ou o Kelvin virem I, S, K.
+ *    Nomes reservados e extensões usam NFKC + comparação ASCII.
+ *  - Veja docs/api/path-guard.md: é o contrato das duas implementações.
  */
 final class PathGuard
 {
@@ -56,7 +59,7 @@ final class PathGuard
         'ads' => 'Dois-pontos (fluxos alternativos) não são permitidos.',
         'short_name' => 'Nomes curtos 8.3 (com ~número) não são permitidos.',
         'reserved' => 'Nome reservado do Windows (CON, NUL, COM1...).',
-        'invalid_char' => 'Contém caracteres não permitidos.',
+        'char_not_allowed' => 'Só letras, números, espaço e . - _ ( ) são permitidos.',
         'separator' => 'O nome não pode conter separadores de pasta.',
     ];
 
@@ -66,7 +69,10 @@ final class PathGuard
         return self::MESSAGES[$code] ?? $code;
     }
 
-    /** Motivo (mensagem) pelo qual o diretório é inválido, ou null. */
+    /**
+     * Motivo (mensagem) pelo qual o diretório é inválido, ou null.
+     * ATENÇÃO: é só sintaxe. Para diretórios de política chame também forbiddenPolicyDirectory().
+     */
     public static function validateDirectory(string $path): ?string
     {
         $code = self::directoryReason($path);
@@ -74,7 +80,11 @@ final class PathGuard
         return $code === null ? null : self::message($code);
     }
 
-    /** Motivo (mensagem) pelo qual o nome de arquivo é inválido, ou null. */
+    /**
+     * Motivo (mensagem) pelo qual o nome de arquivo é inválido, ou null.
+     * ATENÇÃO: NÃO olha a extensão (".exe", "a.pdf.exe" são nomes válidos aqui). Quem aceita um arquivo deve
+     * chamar também hasBlockedExtension().
+     */
     public static function validateFileName(string $name): ?string
     {
         $code = self::fileNameReason($name);
@@ -190,6 +200,8 @@ final class PathGuard
     /**
      * Junta diretório e nome de arquivo. Lança InvalidArgumentException se qualquer parte for inválida ou o
      * resultado passar de 260: o resultado sempre está dentro do diretório informado.
+     * ATENÇÃO: NÃO checa extensão (chame hasBlockedExtension() no nome) nem a política (isInside() contra a lista
+     * da política; forbiddenPolicyDirectory() para diretórios de política).
      */
     public static function join(string $dir, string $name): string
     {
@@ -283,8 +295,16 @@ final class PathGuard
         if (self::isReservedName($component)) {
             return 'reserved';
         }
-        if (preg_match('/^[\p{L}\p{M}\p{Nd} .\-_()\[\]&+,\'#@!=]+$/u', $component) !== 1) {
-            return 'invalid_char';
+        $composed = Normalizer::normalize($component, Normalizer::FORM_C);
+        if ($composed === false || preg_match('/^[\p{L}\p{N} .\-_()]+$/u', $composed) !== 1) {
+            return 'char_not_allowed';
+        }
+        // Caractere que o NFC troca sozinho por outro (Kelvin K, Ohm, Angstrom, ideogramas de compatibilidade): no
+        // disco é um nome diferente do que o NFC produz, então não pode ser aceito (senão "K" Kelvin casaria com "k").
+        foreach (preg_split('//u', $component, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $char) {
+            if (strlen($char) > 1 && Normalizer::normalize($char, Normalizer::FORM_C) !== $char) {
+                return 'char_not_allowed';
+            }
         }
 
         return null;
@@ -326,10 +346,10 @@ final class PathGuard
         return null;
     }
 
-    /** NFC + maiúsculas simples: forma de comparação sem diferenciar caixa. */
+    /** NFC + dobra de caixa SÓ ASCII (a-z -> A-Z): o resto dos caracteres é comparado exato. */
     private static function fold(string $text): string
     {
-        return mb_convert_case(self::normalizeName($text), MB_CASE_UPPER_SIMPLE, 'UTF-8');
+        return strtr(self::normalizeName($text), 'abcdefghijklmnopqrstuvwxyz', 'ABCDEFGHIJKLMNOPQRSTUVWXYZ');
     }
 
     /** Comprimento em unidades UTF-16 (o que o Windows limita). Exige UTF-8 válido. */
