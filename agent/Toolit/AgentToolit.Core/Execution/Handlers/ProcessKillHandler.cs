@@ -36,12 +36,23 @@ public sealed class ProcessKillHandler(IProcessApi api, ProtectedProcessList pro
             return Task.FromResult(TaskOutcome.Rejected($"pid reuse: pid {pid} is now '{live.Name}'"));
         }
 
+        // Processo crítico (ex.: svchost que hospeda DcomLaunch/RpcSs): encerrá-lo como LocalSystem derruba a máquina.
+        switch (api.IsCritical(pid))
+        {
+            case true:
+                return Task.FromResult(TaskOutcome.Rejected("protected process: processo crítico do sistema"));
+            case null when api.Get(pid) is null:
+                return Task.FromResult(TaskOutcome.Failed("process not found"));
+            case null:
+                return Task.FromResult(TaskOutcome.Rejected("não foi possível verificar se o processo é crítico"));
+        }
+
         ct.ThrowIfCancellationRequested();
         try
         {
             api.Kill(pid);
         }
-        catch (ArgumentException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             return Task.FromResult(TaskOutcome.Failed("process not found"));   // terminou sozinho entre a checagem e o kill
         }

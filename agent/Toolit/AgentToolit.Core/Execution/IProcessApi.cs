@@ -14,4 +14,10 @@ public interface IProcessApi
 
     /// <summary>Encerra só o processo (não a árvore). Lança se não conseguir.</summary>
     void Kill(int pid);
+
+    /// <summary>
+    /// Processo marcado como crítico pelo Windows (encerrá-lo causa CRITICAL_PROCESS_DIED, ex.: o svchost do
+    /// DcomLaunch/RpcSs). <c>null</c> = não foi possível verificar (acesso negado ou processo inexistente).
+    /// </summary>
+    bool? IsCritical(int pid);
 }

@@ -111,7 +111,12 @@ public class TaskHandlersTests(ITestOutputHelper output)
         using var child = Process.Start(start)!;
         try
         {
-            var handler = new ProcessKillHandler(new WindowsProcessApi(), new ProtectedProcessList());
+            var api = new WindowsProcessApi();
+            var handler = new ProcessKillHandler(api, new ProtectedProcessList());
+
+            // Só leitura: o filho descartável e o próprio processo de teste não são críticos.
+            Assert.False(api.IsCritical(child.Id));
+            Assert.False(api.IsCritical(Environment.ProcessId));
 
             // Nome errado para aquele PID: recusa e o processo continua vivo.
             var wrong = await handler.ExecuteAsync(P("{\"pid\":" + child.Id + ",\"name\":\"notepad.exe\"}"), default);
@@ -121,6 +126,7 @@ public class TaskHandlersTests(ITestOutputHelper output)
             var outcome = await handler.ExecuteAsync(P("{\"pid\":" + child.Id + ",\"name\":\"PING.EXE\"}"), default);
             Assert.Equal("completed", outcome.Status);
             Assert.True(child.WaitForExit(10_000), "o ping deveria ter sido encerrado");
+            Assert.Null(api.Get(child.Id));
 
             // Já encerrado: failed "not found".
             var again = await handler.ExecuteAsync(P("{\"pid\":" + child.Id + ",\"name\":\"ping\"}"), default);

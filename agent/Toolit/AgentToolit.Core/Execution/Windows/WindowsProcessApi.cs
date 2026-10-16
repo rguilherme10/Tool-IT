@@ -48,6 +48,29 @@ public sealed class WindowsProcessApi : IProcessApi
         }
     }
 
+    public bool? IsCritical(int pid)
+    {
+        if (pid <= 4)
+        {
+            return true;   // Idle/System
+        }
+
+        var handle = OpenProcess(ProcessQueryLimitedInformation, false, (uint)pid);
+        if (handle == IntPtr.Zero)
+        {
+            return null;
+        }
+
+        try
+        {
+            return IsProcessCritical(handle, out var critical) ? critical : null;
+        }
+        finally
+        {
+            CloseHandle(handle);
+        }
+    }
+
     public void Kill(int pid)
     {
         using var process = Process.GetProcessById(pid);   // ArgumentException se já não existe
@@ -133,4 +156,8 @@ public sealed class WindowsProcessApi : IProcessApi
 
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CloseHandle(IntPtr handle);
+
+    // Windows 8.1+.
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool IsProcessCritical(IntPtr process, out bool critical);
 }

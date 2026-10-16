@@ -42,6 +42,11 @@ public class TaskExecutionTests
 
         public List<int> Killed { get; } = [];
 
+        /// <summary>PID → crítico (true), não crítico (false) ou não verificável (null). Ausente = não crítico.</summary>
+        public Dictionary<int, bool?> Critical { get; } = [];
+
+        public bool? IsCritical(int pid) => Critical.TryGetValue(pid, out var c) ? c : false;
+
         public IReadOnlyList<ProcessInfo> List() => Processes.Values.ToList();
 
         public ProcessInfo? Get(int pid) => Processes.GetValueOrDefault(pid);
@@ -215,6 +220,29 @@ public class TaskExecutionTests
         var ok = await runner.RunAsync(Assignment("process.kill", """{"pid":2000,"name":"NOTEPAD.EXE"}"""), default);
         Assert.Equal("completed", ok.Status);
         Assert.Equal([2000], api.Killed);
+    }
+
+    [Fact]
+    public async Task Critical_or_unverifiable_process_is_refused_without_killing()
+    {
+        // svchost que hospeda DcomLaunch/RpcSs: nome comum, mas marcado como crítico pelo Windows.
+        var api = new FakeProcessApi().With(900, "svchost").With(901, "svchost").With(902, "notepad");
+        api.Critical[900] = true;
+        api.Critical[901] = null;   // acesso negado ao verificar
+        var runner = Runner(null, new ProcessKillHandler(api, new ProtectedProcessList()));
+
+        var critical = await runner.RunAsync(Assignment("process.kill", """{"pid":900,"name":"svchost.exe"}"""), default);
+        Assert.Equal("rejected", critical.Status);
+        Assert.Contains("crítico", critical.Error);
+
+        var unknown = await runner.RunAsync(Assignment("process.kill", """{"pid":901,"name":"svchost"}"""), default);
+        Assert.Equal("rejected", unknown.Status);
+        Assert.Equal("não foi possível verificar se o processo é crítico", unknown.Error);
+        Assert.Empty(api.Killed);
+
+        var ok = await runner.RunAsync(Assignment("process.kill", """{"pid":902,"name":"notepad"}"""), default);
+        Assert.Equal("completed", ok.Status);
+        Assert.Equal([902], api.Killed);
     }
 
     [Fact]
